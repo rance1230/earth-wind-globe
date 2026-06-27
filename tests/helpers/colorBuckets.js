@@ -151,3 +151,56 @@ export function analyzeRing(file, opts = {}) {
 export function resolveScreen(name) {
   return path.resolve(process.cwd(), "tests", "__screens__", name);
 }
+
+// Lighting analysis (PLAN-V3 task A1). Reports overexposure ratio (emissive
+// "glow" check) and a day/night terminator check: splits the globe disc into
+// quadrants and returns the average luminance of the brightest vs dimmest half.
+// A realistic sun produces a measurable day>night gap with a readable night side.
+export function analyzeLighting(file) {
+  const buffer = fs.readFileSync(file);
+  const png = PNG.sync.read(buffer);
+  const { width, height, data } = png;
+  let overexp = 0;
+  let lit = 0;
+  let lumSum = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const max = Math.max(r, g, b);
+    if (max <= 58) continue;
+    lit += 1;
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    lumSum += lum;
+    if (lum > 220) overexp += 1;
+  }
+  // Quadrant brightness within the globe disc (terminator asymmetry).
+  const cx = width / 2;
+  const cy = height / 2;
+  const R = 0.34 * Math.min(width, height);
+  const halves = { left: [0, 0], right: [0, 0], top: [0, 0], bottom: [0, 0] };
+  for (let y = Math.max(0, Math.floor(cy - R)); y < Math.min(height, Math.ceil(cy + R)); y += 1) {
+    for (let x = Math.max(0, Math.floor(cx - R)); x < Math.min(width, Math.ceil(cx + R)); x += 1) {
+      const dx = x - cx;
+      const dy = y - cy;
+      if (dx * dx + dy * dy > R * R) continue;
+      const idx = (y * width + x) * 4;
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      if (dx < 0) { halves.left[0] += lum; halves.left[1] += 1; } else { halves.right[0] += lum; halves.right[1] += 1; }
+      if (dy < 0) { halves.top[0] += lum; halves.top[1] += 1; } else { halves.bottom[0] += lum; halves.bottom[1] += 1; }
+    }
+  }
+  const avg = (h) => (h[1] ? h[0] / h[1] : 0);
+  const horizGap = Math.abs(avg(halves.left) - avg(halves.right));
+  const vertGap = Math.abs(avg(halves.top) - avg(halves.bottom));
+  const dayLum = Math.max(avg(halves.left), avg(halves.right), avg(halves.top), avg(halves.bottom));
+  const nightLum = Math.min(avg(halves.left), avg(halves.right), avg(halves.top), avg(halves.bottom));
+  return {
+    overexposureRatio: lit ? overexp / lit : 0,
+    avgLuminance: lit ? lumSum / lit : 0,
+    nightLuminance: nightLum,
+    dayLuminance: dayLum,
+    terminatorGap: Math.max(horizGap, vertGap),
+    halves: { left: avg(halves.left), right: avg(halves.right), top: avg(halves.top), bottom: avg(halves.bottom) }
+  };
+}

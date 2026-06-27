@@ -1,16 +1,11 @@
 import * as THREE from "three";
 
-// Earth (PLAN-V2.1-EARTH-MAP-EXEC-GLM5.2 task 3).
+// Earth (PLAN-V3 task A1).
 //
-// Procedural canvas is the synchronous fallback so the sphere is visible
-// immediately; a NASA Blue Marble NG texture loads asynchronously and replaces
-// the map/emissiveMap when ready. On failure we keep the fallback and report it
-// honestly (never claim the high-precision map). The old procedural bump map is
-// removed (D3) — its blobs would not align with real coastlines.
-//
-// D1 (instrument-panel emissive): the whole surface self-illuminates via
-// emissiveMap so continents stay readable on both hemispheres — a single
-// DirectionalLight terminator would hide Africa if it landed on the dark side.
+// NASA Blue Marble NG texture with NO emissive self-illumination — replaced by
+// a realistic sun DirectionalLight + night-side fill so a day/night terminator
+// is visible. Procedural canvas remains the synchronous fallback. matte land
+// (roughness ~0.9, metalness 0) avoids specular highlights that read as "glow".
 
 const EARTH_TEXTURE_URL = "/assets/earth/blue-marble-5400x2700.jpg";
 
@@ -49,14 +44,13 @@ export function createEarth(radius) {
   fallback.wrapS = THREE.RepeatWrapping;
   fallback.anisotropy = 4;
 
-  // D1: emissive instrument look — continents self-illuminate, whole globe
-  // readable regardless of the directional-light terminator.
+  // A1: no emissive — the surface is lit by a realistic sun + night-side fill.
+  // Matte land (roughness ~0.9) avoids specular "glow" highlights.
   const material = new THREE.MeshStandardMaterial({
     map: fallback,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: fallback,
-    emissiveIntensity: 1.25,
-    roughness: 0.85,
+    emissive: new THREE.Color(0x000000),
+    emissiveIntensity: 0,
+    roughness: 0.9,
     metalness: 0.0
   });
 
@@ -72,7 +66,6 @@ export function createEarth(radius) {
       tex.wrapS = THREE.RepeatWrapping;
       tex.anisotropy = 8;
       material.map = tex;
-      material.emissiveMap = tex;
       material.needsUpdate = true;
       fallback.dispose();
       _markReady("nasaBlueMarble");

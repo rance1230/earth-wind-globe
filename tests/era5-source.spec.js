@@ -21,7 +21,7 @@ async function waitForSourceSettled(page) {
 
 test(`windSource reports a valid, honest status (no ERA5 frame shipped)`, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
     timeout: 15000
   });

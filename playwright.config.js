@@ -8,11 +8,17 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // SwiftShader software rendering: rendering is fast (~10ms/frame) but each
+  // page.screenshot triggers a multi-second ReadPixels stall. Tests do several
+  // screenshots, so allow very generous per-test time.
+  timeout: 360000,
   reporter: [["list"]],
   use: {
     baseURL: "http://127.0.0.1:4173",
-    actionTimeout: 10000,
-    expect: { timeout: 10000 },
+    // SwiftShader's GPU ReadPixels stalls make full-viewport screenshots (esp.
+    // 1280x1280) take 30-60s each; allow generous action time.
+    actionTimeout: 120000,
+    expect: { timeout: 30000 },
     launchOptions: {
       args: [
         "--use-gl=angle",

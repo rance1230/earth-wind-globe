@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { analyzePng, analyzeRing, resolveScreen } from "./helpers/colorBuckets.js";
+import { analyzePng, analyzeRing, resolveScreen, analyzeLighting } from "./helpers/colorBuckets.js";
 
 // PLAN-GLM5.2 task 1: real Playwright pixel acceptance.
 // Viewports come from playwright.config.js projects (desktop / mobile). Each
@@ -14,6 +14,9 @@ function projectFromInfo(info) {
 }
 
 test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
+  // SwiftShader's GPU ReadPixels stalls make each screenshot multi-second;
+  // this test does one full-viewport screenshot + lighting analysis.
+  test.setTimeout(180000);
   const project = projectFromInfo(testInfo);
   // Re-assert the viewport in case of drift across runs.
   const vp =
@@ -22,19 +25,22 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
       : { width: 390, height: 844 };
   await page.setViewportSize(vp);
 
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   // Earth map texture loads async; wait for it (success or fallback) before any
   // color assertion so the screenshot reflects the final texture (PLAN-V2.1 D5).
   await page.waitForFunction(() => window.__viz.earthMapReady() === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForTimeout(900);
 
-  // Data-truth assertions (PLAN-V2.1 task 5): the earth map is the real NASA
-  // texture, and the wind source stays ERA5 after the texture swap.
+  // Freeze the render loop for the screenshot: SwiftShader's per-frame
+  // ReadPixels stalls (bloom composer) hang screenshots while the globe spins.
+  await page.evaluate(() => window.__viz.setRenderFreeze(true));
+  // Data-truth assertions: the earth map is the real NASA texture, and the wind
+  // source stays ERA5 after the texture swap.
   expect(
     await page.evaluate(() => window.__viz.earthMapSource()),
     "earth map is NASA Blue Marble"
@@ -52,12 +58,18 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   expect(box.width).toBeGreaterThan(vp.width * 0.5);
   expect(box.height).toBeGreaterThan(vp.height * 0.5);
 
-  await canvas.screenshot({ path: file });
+  // Page-level screenshot clipped to the canvas box — element screenshots wait
+  // for the canvas to "stabilize", which never happens while the globe spins.
+  await page.screenshot({ path: file, clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
   const stat = fs.statSync(file);
   expect(stat.size).toBeGreaterThan(2000);
 
   const analysis = analyzePng(file);
-  expect(analysis.nonBackgroundRatio, "non-background > 0.5").toBeGreaterThan(0.5);
+  // PLAN-V3 A1: with a realistic sun + night side, the dark hemisphere is
+  // dimmer (some night pixels fall under the background floor), so the lit
+  // fraction is lower than under the old uniform emissive lighting, and lower
+  // still on the narrow mobile viewport. Relax.
+  expect(analysis.nonBackgroundRatio, "non-background > 0.25").toBeGreaterThan(0.25);
   const report = analysis.report();
   // Thresholds recalibrated for NASA Blue Marble NG 5400×2700 (PLAN-V2.1 D5).
   // Each bucket is a loose existence check (~half the measured baseline) so it
@@ -92,6 +104,22 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
     body: JSON.stringify(report, null, 2),
     contentType: "application/json"
   });
+
+  // PLAN-V3 task A1: realistic sun lighting (no emissive glow, terminator present,
+  // night side readable). Skipped on the narrow mobile viewport where the disc is
+  // small and terminator asymmetry is hard to measure reliably.
+  const lightingMode = await page.evaluate(() => window.__viz.lightingMode());
+  expect(lightingMode, "lighting is realistic sun").toBe("realisticSun");
+  if (!isMobile) {
+    const lighting = analyzeLighting(file);
+    expect(lighting.overexposureRatio, "no emissive overexposure glow").toBeLessThan(0.12);
+    expect(lighting.terminatorGap, "day/night terminator is present").toBeGreaterThan(8);
+    expect(lighting.nightLuminance, "night side readable (not black)").toBeGreaterThan(30);
+    testInfo.attach(`${project}-lighting`, {
+      body: JSON.stringify(lighting, null, 2),
+      contentType: "application/json"
+    });
+  }
 });
 
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {
@@ -101,12 +129,12 @@ test(`earth map falls back honestly when the texture is missing`, async ({ page 
     route.fulfill({ status: 404, body: "blocked for test" })
   );
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForFunction(() => window.__viz.earthMapReady() === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   const source = await page.evaluate(() => window.__viz.earthMapSource());
   expect(source, "missing texture must report proceduralFallback, never nasaBlueMarble").toBe(
@@ -115,15 +143,16 @@ test(`earth map falls back honestly when the texture is missing`, async ({ page 
 });
 
 test(`animates while running and freezes when paused`, async ({ page }, testInfo) => {
+  test.setTimeout(300000); // 4 full-viewport screenshots under SwiftShader
   const project = projectFromInfo(testInfo);
   const vp =
     project === "desktop"
       ? { width: 1280, height: 1280 }
       : { width: 390, height: 844 };
   await page.setViewportSize(vp);
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForTimeout(900);
 
@@ -166,9 +195,9 @@ test(`quality switch (UI control) changes satellite count`, async ({ page }, tes
       ? { width: 1280, height: 1280 }
       : { width: 390, height: 844 };
   await page.setViewportSize(vp);
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForTimeout(600);
 
@@ -190,15 +219,16 @@ test(`quality switch (UI control) changes satellite count`, async ({ page }, tes
 });
 
 test(`reset (UI control) returns the camera to the default distance`, async ({ page }, testInfo) => {
+  test.setTimeout(240000);
   const project = projectFromInfo(testInfo);
   const vp =
     project === "desktop"
       ? { width: 1280, height: 1280 }
       : { width: 390, height: 844 };
   await page.setViewportSize(vp);
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForTimeout(500);
 
@@ -227,15 +257,16 @@ test(`reset (UI control) returns the camera to the default distance`, async ({ p
 });
 
 test(`pause (UI control) freezes frames`, async ({ page }, testInfo) => {
+  test.setTimeout(300000); // multiple full-viewport screenshots under SwiftShader
   const project = projectFromInfo(testInfo);
   const vp =
     project === "desktop"
       ? { width: 1280, height: 1280 }
       : { width: 390, height: 844 };
   await page.setViewportSize(vp);
-  await page.goto("/");
+  await page.goto("/?nobloom=1");
   await page.waitForFunction(() => window.__viz && window.__viz.ready === true, null, {
-    timeout: 15000
+    timeout: 30000
   });
   await page.waitForTimeout(700);
 

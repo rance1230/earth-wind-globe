@@ -30,6 +30,17 @@ import {
 // Africa / Arabian Peninsula / Indian Ocean.
 const INTRO_ROTATION_Y = Math.PI * 0.5;
 
+// lon/lat (degrees) -> unit vector on the sphere (ECEF, matches equirect map).
+function llrToVec(lonDeg, latDeg, r) {
+  const lat = THREE.MathUtils.degToRad(latDeg);
+  const lon = THREE.MathUtils.degToRad(lonDeg);
+  return new THREE.Vector3(
+    r * Math.cos(lat) * Math.cos(lon),
+    r * Math.sin(lat),
+    r * Math.cos(lat) * Math.sin(lon)
+  );
+}
+
 export class EarthScene {
   constructor(canvas) {
     this.canvas = canvas;
@@ -60,14 +71,18 @@ export class EarthScene {
 
   init() {
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.pixelRatioCap));
+    // ?lowres=1 (used by Playwright under SwiftShader) halves the backing-store
+    // pixel ratio so full-viewport screenshots don't stall on ReadPixels.
+    const lowres = new URLSearchParams(window.location.search).get("lowres") === "1";
+    this.testScale = lowres ? 0.5 : 1;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.pixelRatioCap) * this.testScale);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.22; // tame indoor reflections so continents keep their hue
+    this.scene.environmentIntensity = 0.15; // A1: low indoor reflection, terminator reads clearly
     this.scene.background = new THREE.Color("#05070b");
 
     this.camera.position.set(0.8, 1.2, CONFIG.cameraDistance);
@@ -77,10 +92,26 @@ export class EarthScene {
     this.controls.minDistance = 3.2;
     this.controls.maxDistance = 9;
 
-    const key = new THREE.DirectionalLight("#ffffff", 1.6);
-    key.position.set(3, 4, 3);
-    const fill = new THREE.HemisphereLight("#cdeeff", "#07111d", 0.9);
-    this.scene.add(key, fill, this.root);
+    // A1: realistic sun as the key light. Direction is updated from the current
+    // wind frame UTC time (subsolar point); a strong night-side hemisphere fill
+    // keeps the dark hemisphere readable without flattening the terminator.
+    this.sunLight = new THREE.DirectionalLight("#fff6e8", 2.6);
+    this.scene.add(this.sunLight, this.sunLight.target);
+    // Night-side fill: sky tint over a dim ground, lifted enough that the dark
+    // hemisphere's terrain/labels stay readable (max channel > background floor)
+    // but clearly dimmer than the sun-lit day side.
+    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.8);
+    this.scene.add(this.nightFill, this.root);
+    // A modest ambient lift so the dark hemisphere's terrain stays above the
+    // screenshot background-detection floor (max channel > ~58), keeping labels
+    // and geography readable on the night side while the sun-lit day side is
+    // still clearly brighter.
+    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 0.7);
+    this.scene.add(this.nightAmbient);
+    this.nightFillEnabled = true;
+    // Initial sun direction from the default ERA5 frame time; re-applied on
+    // wind frame change in B2 via updateSunFromTime().
+    this.updateSunFromTime(this.era5Frame?.timeUtc ?? null);
 
     // Initial framing: rotate so the Americas + Africa face the camera on load,
     // then let the globe drift slowly. Equirect texture maps lon 0 to the seam,
@@ -92,16 +123,24 @@ export class EarthScene {
     // postprocessing with graceful degradation (PLAN-GLM5.2 §4.5 / I7).
     // Bloom tuned low enough that warm wind hues stay readable (task 3) while
     // still giving the rim/satellites a glow; refined further in task 7.
-    try {
-      this.composer = new EffectComposer(this.renderer);
-      this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.5, 0.32));
-      this.postprocessingEnabled = true;
-    } catch (err) {
+    // ?nobloom=1 skips the composer entirely — used by Playwright under SwiftShader
+    // where the composer's per-frame render-target ReadPixels stalls screenshots.
+    const skipBloom = new URLSearchParams(window.location.search).get("nobloom") === "1";
+    if (skipBloom) {
       this.postprocessingEnabled = false;
       this.composer = null;
-      // eslint-disable-next-line no-console
-      console.warn("[EarthScene] postprocessing unavailable, falling back to direct render", err);
+    } else {
+      try {
+        this.composer = new EffectComposer(this.renderer);
+        this.composer.addPass(new RenderPass(this.scene, this.camera));
+        this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.5, 0.32));
+        this.postprocessingEnabled = true;
+      } catch (err) {
+        this.postprocessingEnabled = false;
+        this.composer = null;
+        // eslint-disable-next-line no-console
+        console.warn("[EarthScene] postprocessing unavailable, falling back to direct render", err);
+      }
     }
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -230,16 +269,24 @@ export class EarthScene {
 
   resize() {
     const bounds = this.canvas.parentElement.getBoundingClientRect();
-    const width = Math.max(320, Math.floor(bounds.width));
-    const height = Math.max(320, Math.floor(bounds.height));
-    this.camera.aspect = width / height;
+    let width = Math.max(320, Math.floor(bounds.width));
+    let height = Math.max(320, Math.floor(bounds.height));
+    // Under SwiftShader (test mode, ?lowres=1) halve the backing store to keep
+    // full-viewport screenshots from stalling; CSS stretches it to fill.
+    const renderW = Math.floor(width * this.testScale);
+    const renderH = Math.floor(height * this.testScale);
+    this.camera.aspect = renderW / renderH;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
-    if (this.composer) this.composer.setSize(width, height);
+    this.renderer.setSize(renderW, renderH, false);
+    // Stretch the backing store back to the CSS box.
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
+    if (this.composer) this.composer.setSize(renderW, renderH);
   }
 
   animate() {
     requestAnimationFrame(() => this.animate());
+    if (this.renderFrozen) return;
     const liveElapsed = this.clock.getElapsedTime();
     const liveDelta = this.clock.getDelta();
     // While paused, freeze the animation clock so wind/satellite layers stop
@@ -248,6 +295,14 @@ export class EarthScene {
     const delta = this.paused ? 0 : liveDelta;
     if (!this.paused) this.frozenElapsed = liveElapsed;
     this.root.rotation.y += delta * 0.08;
+    // A1: refresh the sun only when the wind frame time changes (not every
+    // frame) so the canvas can settle for stable screenshots. The sun is in
+    // world space and tracks the camera once per frame-time change.
+    const sunTime = this.currentFrameTimeUtc ?? this.era5Frame?.timeUtc ?? null;
+    if (sunTime !== this._lastSunTime) {
+      this._lastSunTime = sunTime;
+      this.updateSunFromTime(sunTime);
+    }
     for (const layer of this.layers) layer.update?.(elapsed, delta);
     this.controls.update();
     if (this.composer) this.composer.render();
@@ -257,6 +312,17 @@ export class EarthScene {
   // --- state mutators (full behavior completed in task 2) ---
   setPaused(value) {
     this.paused = !!value;
+  }
+
+  // Freeze the RAF render loop for stable screenshots under SwiftShader (the
+  // bloom composer's per-frame ReadPixels stalls hang screenshots while the
+  // globe spins). Renders one final frame, then stops scheduling rAF.
+  setRenderFreeze(v) {
+    this.renderFrozen = !!v;
+    if (this.renderFrozen) {
+      if (this.composer) this.composer.render();
+      else this.renderer.render(this.scene, this.camera);
+    }
   }
 
   setQuality(quality) {
@@ -273,6 +339,32 @@ export class EarthScene {
     this.controls.update();
     // Reset the framing rotation too so the view returns to the intro shot.
     this.root.rotation.y = INTRO_ROTATION_Y;
+  }
+
+  // A1: position the sun light. The sun is in WORLD space and does NOT follow
+  // the globe's spin — physically the sun is fixed while Earth rotates, so a
+  // stable terminator crosses the visible disc and geography slides under it.
+  // Its world longitude shifts with the wind-frame UTC (B2) via the subsolar
+  // longitude, latitude is a fixed declination for a stable terminator.
+  updateSunFromTime(timeUtc) {
+    let hourUTC = 12; // noon default -> sun over the prime meridian
+    if (typeof timeUtc === "string") {
+      const m = /T(\d{2}):(\d{2})/.exec(timeUtc);
+      if (m) hourUTC = Number(m[1]) + Number(m[2]) / 60;
+    }
+    const subsolarLon = -15 * (hourUTC - 12); // degrees
+    // Fixed declination ~ +18° (northern summer) for a stable terminator.
+    const subsolarLat = 18;
+    // Pure subsolar-point sun direction (world space). This produces a clear
+    // diagonal terminator across the visible disc rather than flattening it.
+    // The wind-frame hour shifts which longitude is lit (B2). We do NOT bias
+    // toward the camera — that would wash out the day/night contrast.
+    const dir = llrToVec(subsolarLon, subsolarLat, 1);
+    const far = this.camera.position.length() + 10;
+    this.sunLight.position.copy(dir.clone().multiplyScalar(far));
+    this.sunLight.target.position.set(0, 0, 0);
+    this.sunLight.target.updateMatrixWorld();
+    this.currentSunDirection = [dir.x, dir.y, dir.z];
   }
 
   updateEarthMapBadge() {
@@ -305,6 +397,11 @@ export class EarthScene {
       // Earth map provenance hooks (PLAN-V2.1 task 4). Only nasaBlueMarble when
       // the real texture is on screen; proceduralFallback is honest otherwise.
       earthMapReady: () => earthMapReady(),
+      // A1 lighting hooks.
+      lightingMode: () => "realisticSun",
+      nightFillEnabled: () => this.nightFillEnabled,
+      sunDirection: () => this.currentSunDirection ?? [1, 0, 0],
+      setRenderFreeze: (v) => this.setRenderFreeze(v),
       earthMapSource: () => earthMapSource(),
       earthMapAttribution: () => earthMapAttribution(),
       setPaused: (v) => this.setPaused(v),
