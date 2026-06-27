@@ -1,69 +1,214 @@
 import * as THREE from "three";
 
-export function createEarth(radius) {
-  const texture = new THREE.CanvasTexture(createEarthTexture());
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
+// Earth (PLAN-V2.1-EARTH-MAP-EXEC-GLM5.2 task 3).
+//
+// Procedural canvas is the synchronous fallback so the sphere is visible
+// immediately; a NASA Blue Marble NG texture loads asynchronously and replaces
+// the map/emissiveMap when ready. On failure we keep the fallback and report it
+// honestly (never claim the high-precision map). The old procedural bump map is
+// removed (D3) — its blobs would not align with real coastlines.
+//
+// D1 (instrument-panel emissive): the whole surface self-illuminates via
+// emissiveMap so continents stay readable on both hemispheres — a single
+// DirectionalLight terminator would hide Africa if it landed on the dark side.
 
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    roughness: 0.58,
-    metalness: 0.08
-  });
+const EARTH_TEXTURE_URL = "/assets/earth/blue-marble-5400x2700.jpg";
 
-  return new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 64), material);
+// Module-level state read by EarthScene / __viz. Only nasaBlueMarble is set when
+// the real texture is actually on screen; proceduralFallback is honest.
+let _mapSource = "proceduralFallback"; // "nasaBlueMarble" | "proceduralFallback"
+let _mapReady = false;
+let _onReadyCbs = [];
+
+export function earthMapSource() {
+  return _mapSource;
+}
+export function earthMapReady() {
+  return _mapReady;
+}
+export function earthMapAttribution() {
+  return _mapSource === "nasaBlueMarble"
+    ? "NASA Blue Marble — NASA Earth Observatory"
+    : "Procedural fallback (not a high-precision map)";
+}
+export function onEarthMapReady(cb) {
+  if (_mapReady) cb();
+  else _onReadyCbs.push(cb);
+}
+function _markReady(source) {
+  _mapSource = source;
+  _mapReady = true;
+  _onReadyCbs.forEach((cb) => cb());
+  _onReadyCbs = [];
 }
 
+export function createEarth(radius) {
+  // 1) Procedural fallback texture so the globe is visible on the first frame.
+  const fallback = new THREE.CanvasTexture(createEarthTexture());
+  fallback.colorSpace = THREE.SRGBColorSpace;
+  fallback.wrapS = THREE.RepeatWrapping;
+  fallback.anisotropy = 4;
+
+  // D1: emissive instrument look — continents self-illuminate, whole globe
+  // readable regardless of the directional-light terminator.
+  const material = new THREE.MeshStandardMaterial({
+    map: fallback,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: fallback,
+    emissiveIntensity: 1.25,
+    roughness: 0.85,
+    metalness: 0.0
+  });
+
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), material);
+
+  // 2) Asynchronously load the NASA Blue Marble texture; on success swap it in,
+  // on failure keep the fallback and mark the source honestly.
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    EARTH_TEXTURE_URL,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.anisotropy = 8;
+      material.map = tex;
+      material.emissiveMap = tex;
+      material.needsUpdate = true;
+      fallback.dispose();
+      _markReady("nasaBlueMarble");
+    },
+    undefined,
+    (err) => {
+      // Failure: keep proceduralFallback; earthMapReady() still resolves so
+      // downstream waits unblock, but the source is never nasaBlueMarble.
+      // eslint-disable-next-line no-console
+      console.warn("[createEarth] NASA texture load failed, using proceduralFallback:", err);
+      _markReady("proceduralFallback");
+    }
+  );
+
+  return mesh;
+}
+
+// Equirectangular canvas: x = longitude (-180..180), y = latitude (90..-90).
 function createEarthTexture() {
+  const W = 2048;
+  const H = 1024;
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
-  const ocean = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  ocean.addColorStop(0, "#07162a");
-  ocean.addColorStop(0.55, "#0b2745");
-  ocean.addColorStop(1, "#020813");
+
+  // Deep ocean base with a subtle latitudinal banding (polar darker).
+  const ocean = ctx.createLinearGradient(0, 0, 0, H);
+  ocean.addColorStop(0.0, "#08263f");
+  ocean.addColorStop(0.18, "#0c3a63");
+  ocean.addColorStop(0.5, "#0e4377");
+  ocean.addColorStop(0.82, "#0c3a63");
+  ocean.addColorStop(1.0, "#08263f");
   ctx.fillStyle = ocean;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, W, H);
 
-  ctx.globalAlpha = 0.88;
-  drawLand(ctx, 220, 186, 150, 58, -0.12);
-  drawLand(ctx, 420, 238, 90, 132, 0.2);
-  drawLand(ctx, 585, 160, 175, 85, 0.08);
-  drawLand(ctx, 710, 262, 118, 102, -0.2);
-  drawLand(ctx, 818, 323, 86, 48, 0.28);
-  drawLand(ctx, 120, 338, 120, 56, 0.12);
-
-  ctx.globalAlpha = 0.55;
-  ctx.strokeStyle = "#20a8ff";
+  // Latitudinal current hints — faint cyan streaks.
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = "#2db0ff";
   ctx.lineWidth = 2;
-  for (let i = 0; i < 32; i += 1) {
-    const y = 40 + ((i * 37) % 430);
+  for (let i = 0; i < 14; i += 1) {
+    const y = (H * (0.2 + (i / 14) * 0.6)) | 0;
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    for (let x = 0; x <= canvas.width; x += 48) {
-      ctx.lineTo(x, y + Math.sin(x * 0.018 + i) * 7);
+    for (let x = 0; x <= W; x += 24) {
+      ctx.lineTo(x, y + Math.sin(x * 0.01 + i) * 6);
     }
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
+
+  // Helper to draw an irregular filled landmass from lat/lon points.
+  const lon2x = (lon) => ((lon + 180) / 360) * W;
+  const lat2y = (lat) => ((90 - lat) / 180) * H;
+  function drawLandmass(points, fill) {
+    ctx.beginPath();
+    points.forEach(([lon, lat], i) => {
+      const x = lon2x(lon);
+      const y = lat2y(lat);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  const landFill = "#3a5a26";
+  const desertFill = "#9a6a2a";
+  const iceFill = "#dfeaf2";
+
+  // Simplified continents (recognizable silhouettes, longitude/latitude).
+  drawLandmass(
+    [
+      [-168, 65], [-155, 70], [-130, 70], [-95, 72], [-75, 78], [-60, 75],
+      [-55, 60], [-70, 48], [-80, 42], [-82, 30], [-95, 28], [-100, 25],
+      [-110, 23], [-118, 32], [-125, 40], [-128, 49], [-135, 56], [-150, 60], [-168, 65]
+    ],
+    landFill
+  );
+  drawLandmass([[-95, 22], [-86, 18], [-78, 9], [-83, 8], [-92, 16], [-95, 22]], landFill);
+  drawLandmass(
+    [
+      [-80, 12], [-70, 12], [-58, 8], [-50, 0], [-35, -8], [-38, -23],
+      [-50, -34], [-65, -42], [-70, -53], [-74, -50], [-72, -38], [-76, -25],
+      [-80, -12], [-82, 0], [-80, 12]
+    ],
+    landFill
+  );
+  drawLandmass(
+    [[-10, 58], [5, 60], [15, 62], [30, 60], [40, 55], [38, 47], [25, 46],
+     [12, 45], [0, 43], [-9, 44], [-10, 58]],
+    landFill
+  );
+  drawLandmass(
+    [
+      [-17, 21], [-5, 35], [10, 36], [25, 32], [34, 30], [38, 18], [44, 12],
+      [51, 11], [42, -2], [40, -15], [35, -25], [25, -34], [18, -34], [12, -20],
+      [9, -5], [4, 5], [-8, 8], [-17, 14], [-17, 21]
+    ],
+    "#6a5a2a"
+  );
+  ctx.globalAlpha = 0.5;
+  drawLandmass(
+    [[-10, 28], [10, 30], [25, 30], [33, 28], [30, 20], [10, 18], [-8, 20], [-10, 28]],
+    desertFill
+  );
+  ctx.globalAlpha = 1;
+  drawLandmass(
+    [
+      [30, 60], [60, 70], [90, 74], [120, 73], [150, 70], [170, 66], [175, 60],
+      [160, 55], [140, 50], [135, 42], [125, 38], [122, 30], [110, 22], [100, 14],
+      [92, 12], [80, 9], [72, 22], [62, 25], [55, 26], [48, 30], [45, 38],
+      [42, 44], [40, 50], [35, 56], [30, 60]
+    ],
+    landFill
+  );
+  drawLandmass([[70, 24], [78, 22], [88, 22], [84, 10], [78, 8], [72, 16], [70, 24]], landFill);
+  drawLandmass([[95, 5], [105, 2], [115, 0], [110, -4], [100, -2], [95, 5]], landFill);
+  drawLandmass([[120, -2], [135, -3], [140, -5], [130, -8], [118, -7], [120, -2]], landFill);
+  drawLandmass(
+    [[114, -22], [125, -14], [138, -12], [145, -16], [153, -26], [150, -36],
+     [140, -38], [128, -34], [118, -32], [114, -28], [114, -22]],
+    "#7a6a30"
+  );
+  drawLandmass(
+    [[-50, 82], [-25, 82], [-18, 76], [-25, 65], [-45, 62], [-52, 70], [-50, 82]],
+    "#9fb0bb"
+  );
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = iceFill;
+  ctx.fillRect(0, (H * 0.93) | 0, W, H - (H * 0.93) | 0);
+  ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = iceFill;
+  ctx.fillRect(0, 0, W, (H * 0.06) | 0);
+  ctx.globalAlpha = 1;
 
   return canvas;
-}
-
-function drawLand(ctx, cx, cy, rx, ry, phase) {
-  ctx.fillStyle = "#7f8d68";
-  ctx.strokeStyle = "#d09260";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  for (let i = 0; i <= 96; i += 1) {
-    const a = (i / 96) * Math.PI * 2;
-    const wobble = 1 + Math.sin(a * 3 + phase) * 0.16 + Math.cos(a * 7 - phase) * 0.08;
-    const x = cx + Math.cos(a) * rx * wobble;
-    const y = cy + Math.sin(a) * ry * wobble;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
 }

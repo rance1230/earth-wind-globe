@@ -1,0 +1,48 @@
+import { defineConfig, devices } from "@playwright/test";
+
+// PLAN-GLM5.2 task 1: real pixel-acceptance harness. Two viewports; headless
+// WebGL uses ANGLE/SwiftShader flags so bloom/PMREM don't black-screen.
+export default defineConfig({
+  testDir: "./tests",
+  testMatch: /.*\.spec\.js$/,
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  reporter: [["list"]],
+  use: {
+    baseURL: "http://127.0.0.1:4173",
+    actionTimeout: 10000,
+    expect: { timeout: 10000 },
+    launchOptions: {
+      args: [
+        "--use-gl=angle",
+        "--use-angle=swiftshader",
+        "--ignore-gpu-blocklist",
+        "--enable-unsafe-swiftshader"
+      ]
+    }
+  },
+  projects: [
+    {
+      name: "desktop",
+      use: {
+        viewport: { width: 1280, height: 1280 },
+        deviceScaleFactor: 1
+      }
+    },
+    {
+      name: "mobile",
+      use: {
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 1
+      }
+    }
+  ],
+  webServer: {
+    command: "npm run preview",
+    url: "http://127.0.0.1:4173",
+    reuseExistingServer: !process.env.CI,
+    timeout: 60000,
+    cwd: process.cwd()
+  }
+});

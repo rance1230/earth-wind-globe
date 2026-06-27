@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "era5-wind-frame-v1",
+  "frame": "frames/era5-10m-wind-20240115T0000Z.json",
+  "timeUtc": "2024-01-15T00:00:00Z",
+  "source": "ERA5 ARCO on Google Cloud Public Datasets",
+  "producer": "ECMWF / Copernicus Climate Change Service",
+  "licenseNotice": "Contains modified Copernicus Climate Change Service information. ERA5 produced by ECMWF / Copernicus Climate Change Service (C3S). Neither the European Commission nor ECMWF is responsible for any use of the downstream products."
+}

@@ -10,8 +10,21 @@
       <canvas id="globe-canvas"></canvas>
       <div class="hud" aria-live="polite">
         <strong>3D 风场地球可视化</strong>
-        <span>V1 shell: Three.js scene ready for layer implementation</span>
+        <span>V1: procedural earth + wind + satellites</span>
+        <span class="wind-source" id="wind-source" data-source="loading">加载风场…</span>
+        <span class="earth-map-source" id="earth-map-source" data-source="proceduralFallback">加载地球…</span>
       </div>
+      <nav class="controls" aria-label="可视化控件">
+        <button id="btn-pause" type="button" aria-pressed="false">暂停</button>
+        <button id="btn-reset" type="button">重置视角</button>
+        <label class="quality">
+          质量
+          <select id="select-quality">
+            <option value="high" selected>High</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+      </nav>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

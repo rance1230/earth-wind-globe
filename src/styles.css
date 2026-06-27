@@ -59,3 +59,125 @@ body {
   color: rgba(236, 247, 255, 0.74);
   font-size: 12px;
 }
+
+.wind-source {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px !important;
+  border: 1px solid rgba(172, 228, 255, 0.3);
+}
+
+.wind-source[data-source="era5"] {
+  color: #9be8a0;
+  border-color: rgba(120, 220, 140, 0.5);
+}
+
+.wind-source[data-source="devSynthetic"],
+.wind-source[data-source="missing"] {
+  color: #ffd27a;
+  border-color: rgba(220, 180, 90, 0.5);
+}
+
+.earth-map-source {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px !important;
+  border: 1px solid rgba(172, 228, 255, 0.3);
+  color: rgba(236, 247, 255, 0.74);
+}
+
+.earth-map-source[data-source="nasaBlueMarble"] {
+  color: #9be8a0;
+  border-color: rgba(120, 220, 140, 0.5);
+}
+
+.earth-map-source[data-source="proceduralFallback"] {
+  color: #ffd27a;
+  border-color: rgba(220, 180, 90, 0.5);
+}
+
+/* Recording / demo mode (task 7): hide UI for clean capture. Use visibility
+   (not opacity) so Playwright's isVisible() correctly reports hidden. */
+body.demo-mode .hud,
+body.demo-mode .controls {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(3, 8, 14, 0.62);
+  border: 1px solid rgba(172, 228, 255, 0.28);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+}
+
+.controls button,
+.controls select {
+  font: inherit;
+  color: #ecf7ff;
+  background: rgba(20, 36, 56, 0.7);
+  border: 1px solid rgba(172, 228, 255, 0.3);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.controls button:hover,
+.controls select:hover {
+  background: rgba(36, 64, 96, 0.85);
+  border-color: rgba(172, 228, 255, 0.5);
+}
+
+.controls button[aria-pressed="true"] {
+  background: rgba(45, 120, 180, 0.7);
+  border-color: rgba(172, 228, 255, 0.7);
+}
+
+.controls .quality {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controls .quality select {
+  padding-right: 8px;
+}
+
+@media (max-width: 480px) {
+  .hud {
+    /* HUD stays bottom-left; constrain width so it never reaches the screen's
+       right edge. Controls live on the TOP row on mobile to avoid overlap. */
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Keep controls on the TOP row on mobile (do NOT move to bottom). With HUD at
+     the bottom-left and controls at the top-right, they cannot overlap
+     (PLAN-ERA5-WAZA §6.2: mobile controls and HUD must not overlap). */
+  .controls {
+    top: 12px;
+    right: 12px;
+    padding: 5px 7px;
+    gap: 5px;
+    font-size: 12px;
+  }
+
+  .controls button,
+  .controls select {
+    padding: 5px 8px;
+  }
+
+  .controls .quality span {
+    display: none;
+  }
+}
