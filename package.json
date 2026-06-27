@@ -1,0 +1,19 @@
+{
+  "name": "earth-wind-globe-handoff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:visual": "node tests/visual.spec.js"
+  },
+  "dependencies": {
+    "three": "0.184.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "vite": "^8.1.0"
+  }
+}

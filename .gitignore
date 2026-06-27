@@ -1,0 +1,12 @@
+# deps & build
+node_modules/
+dist/
+
+# playwright runtime artifacts
+test-results/
+playwright-report/
+.playwright/
+tests/__screens__/
+
+# os
+.DS_Store
