@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "labels-v1",
+  "asset": "labels-110m.json",
+  "source": "Natural Earth populated places (public domain)",
+  "sourceUrl": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_populated_places.geojson",
+  "scale": "1:110m",
+  "credit": "Natural Earth (naturalearthdata.com)",
+  "licenseNote": "Natural Earth is public domain. Free for any use.",
+  "labelCount": 243,
+  "bilingualPolicy": "China cities carry nameZh (NAME_ZH); others English only",
+  "fileSizeBytes": 32009,
+  "sha256": "2c6fa560f820894fb3de37572617f6b17e5b1247fb3a98326878de5c300c7338",
+  "generatedAt": "2026-06-28T03:07:00.455Z"
+}

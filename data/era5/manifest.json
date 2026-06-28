@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "era5-wind-series-v1",
+  "frame": "frames/era5-10m-wind-20240115T0000Z.json",
+  "timeUtc": "2024-01-15T00:00:00Z",
+  "frameCount": 2,
+  "frames": [
+    {
+      "file": "frames/era5-10m-wind-20240115T0000Z.json",
+      "timeUtc": "2024-01-15T00:00:00Z",
+      "source": "ERA5 ARCO on Google Cloud Public Datasets",
+      "producer": "ECMWF / Copernicus Climate Change Service",
+      "access": "Google Cloud Public Datasets (anonymous)",
+      "variables": [
+        "10m_u_component_of_wind",
+        "10m_v_component_of_wind"
+      ],
+      "units": "m s**-1",
+      "speedStats": {
+        "min": 0.0505,
+        "max": 22.2367,
+        "mean": 6.5469,
+        "p5": 1.352,
+        "p95": 13.3469
+      }
+    },
+    {
+      "file": "frames/era5-10m-wind-20240115T0600Z.json",
+      "timeUtc": "2024-01-15T06:00:00Z",
+      "source": "ERA5 ARCO on Google Cloud Public Datasets",
+      "producer": "ECMWF / Copernicus Climate Change Service",
+      "access": "Google Cloud Public Datasets (anonymous)",
+      "variables": [
+        "10m_u_component_of_wind",
+        "10m_v_component_of_wind"
+      ],
+      "units": "m s**-1",
+      "speedStats": {
+        "min": 0.0318,
+        "max": 26.5368,
+        "mean": 6.5457,
+        "p5": 1.3167,
+        "p95": 13.3616
+      }
+    }
+  ],
+  "source": "ERA5 ARCO on Google Cloud Public Datasets",
+  "producer": "ECMWF / Copernicus Climate Change Service",
+  "access": "Google Cloud Public Datasets (anonymous)",
+  "licenseNotice": "Contains modified Copernicus Climate Change Service information. ERA5 produced by ECMWF / Copernicus Climate Change Service (C3S). Neither the European Commission nor ECMWF is responsible for any use of the downstream products."
+}
