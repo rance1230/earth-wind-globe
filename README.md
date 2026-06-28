@@ -1,8 +1,17 @@
 # 3D 风场地球可视化
 
-复现 X 视频 [@codetaur, 2026-06-27](https://x.com/codetaur/status/2070734494915797392) 的核心观感：**玻璃质感地球 + 动态风场流线 + 卫星点群 + 室内反射 + bloom 后期 + 可录屏镜头 + 真实像素验收**。
+[![Deploy to GitHub Pages](https://github.com/rance1230/earth-wind-globe/actions/workflows/deploy.yml/badge.svg)](https://github.com/rance1230/earth-wind-globe/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Three.js](https://img.shields.io/badge/Three.js-r0.184-black)
+![Vite](https://img.shields.io/badge/Vite-r8.1-646CFF)
 
-> 设计与决策记录见 **[PLAN.md](./PLAN.md)**；V1 逐任务执行计划见 **[PLAN-GLM5.2.md](./PLAN-GLM5.2.md)**；V2 ERA5 升级计划见 **[PLAN-ERA5-WAZA-GLM5.2.md](./PLAN-ERA5-WAZA-GLM5.2.md)**；当前验证状态与残余风险见 **[TRANSFER_STATUS.md](./TRANSFER_STATUS.md)**。
+> 🌐 **在线 Demo**：<https://rance1230.github.io/earth-wind-globe/>
+
+复现 X 视频 [@codetaur, 2026-06-27](https://x.com/codetaur/status/2070734494915797392) 的核心观感：**真实日照玻璃质感地球 + ERA5 动态风场流线 + 卫星点群 + bloom 后期 + 3D 地形 + 国界省界 + 中英城市标签 + 可录屏镜头 + 真实像素验收**。
+
+![3D 风场地球预览](./docs/screenshot.png)
+
+> 设计与决策记录见 **[PLAN.md](./PLAN.md)**；V1 逐任务执行计划见 **[PLAN-GLM5.2.md](./PLAN-GLM5.2.md)**；V2 ERA5 升级计划见 **[PLAN-ERA5-WAZA-GLM5.2.md](./PLAN-ERA5-WAZA-GLM5.2.md)**；V3 三项改进计划见 **[PLAN-V3-WAZA-GLM5.2.md](./PLAN-V3-WAZA-GLM5.2.md)**；当前验证状态与残余风险见 **[TRANSFER_STATUS.md](./TRANSFER_STATUS.md)**。
 
 **当前状态：V2 第一版已完成并验收通过 —— 风场由真实 ERA5 10m u/v 数据驱动。**
 
@@ -269,3 +278,67 @@ QUALITY = {
 - [x] **V3 三项改进（真实日照 / 多帧 ERA5 演变 / 深 zoom+地形+边界+中英标签）**
 - [x] 验收（Playwright 18/18 + ERA5 多帧 validator + earth asset validator + boundaries validator 通过）
 - [ ] V4 真实卫星（TLE）+ 高保真打磨
+
+---
+
+## 环境要求
+
+| 依赖 | 版本 | 说明 |
+|---|---|---|
+| Node.js | **≥ 18**（推荐 18/20 LTS） | Vite 8 要求；项目根有 `.nvmrc`（`nvm use` 自动切换） |
+| npm | ≥ 9 | 随 Node 安装 |
+| Python 3 | ≥ 3.10（**可选**，仅重新获取 ERA5/ETOPO1 数据时） | dev-only 隔离 `.venv`，不污染系统 |
+| Chromium | 首次像素验收需 `npx playwright install chromium` | Playwright 自动下载 |
+
+无后端、无数据库、无运行时网络请求（所有数据构建期预烘焙进 `public/`）。
+
+## 部署
+
+### GitHub Pages（已配置，自动部署）
+
+本项目已配 `.github/workflows/deploy.yml`：每次 push 到 `main` 自动构建并部署到 GitHub Pages。
+
+- **在线地址**：<https://rance1230.github.io/earth-wind-globe/>
+- **原理**：CI 跑 `npm ci` → `npm run build` → 上传 `dist/` 到 Pages。`vite.config.js` 已设 `base: "./"` 兼容项目子路径。
+- **首次开启**（新 fork 后）：repo Settings → Pages → Source 选 `GitHub Actions`。
+
+### 其他静态托管（Vercel / Netlify / Cloudflare Pages）
+
+构建产物是纯静态 SPA，任意静态托管可用：
+
+```bash
+npm install
+npm run build      # 产物在 dist/
+# 把 dist/ 部署到任意静态主机根目录即可
+```
+
+- **Vercel/Netlify**：连接 repo，Build command `npm run build`，Output dir `dist`，无需额外配置。
+- 注意：如部署到子路径，确保 `vite.config.js` 的 `base` 对应（默认 `./` 已兼容）。
+
+## 开发过程文档
+
+本项目完整保留了从设计到 V3 的开发过程文档（透明记录）：
+
+| 文档 | 内容 |
+|---|---|
+| [PLAN.md](./PLAN.md) | 原始设计与决策记录 |
+| [PLAN-GLM5.2.md](./PLAN-GLM5.2.md) | V1 逐任务可验证执行计划（synthetic prototype） |
+| [PLAN-ERA5-WAZA-GLM5.2.md](./PLAN-ERA5-WAZA-GLM5.2.md) | V2 ERA5 数据驱动升级计划 |
+| [PLAN-V3-WAZA-GLM5.2.md](./PLAN-V3-WAZA-GLM5.2.md) | V3 三项改进（日照/多帧/地图）计划 |
+| [docs/PLAN-V2.1-EARTH-MAP-EXEC-GLM5.2.md](./docs/PLAN-V2.1-EARTH-MAP-EXEC-GLM5.2.md) | V2.1 NASA Blue Marble 地球纹理计划 |
+| [TRANSFER_STATUS.md](./TRANSFER_STATUS.md) | 当前验证状态、截图路径、残余风险 |
+| [docs/ERA5-DATA-PROVENANCE.md](./docs/ERA5-DATA-PROVENANCE.md) | ERA5 数据溯源、schema、引用格式 |
+| [docs/ERA5-V2-ROOT-CAUSE.md](./docs/ERA5-V2-ROOT-CAUSE.md) | V2 根因分析（synthetic vs ERA5） |
+| [docs/EVAL-V2.1-EARTH-MAP-PLAN.md](./docs/EVAL-V2.1-EARTH-MAP-PLAN.md) | V2.1 地图升级评估 |
+| [docs/V3-PAUSE-A1-SWIFTSHADER.md](./docs/V3-PAUSE-A1-SWIFTSHADER.md) | V3 A1 SwiftShader 性能墙分析 |
+
+数据资产烘焙脚本在 `scripts/era5/`、`scripts/earth/`、`scripts/boundaries/`、`scripts/labels/`，可重现全部数据获取。
+
+## License
+
+- **代码**：[MIT License](./LICENSE) © 2026 rance1230。
+- **数据资产**：保留各自原始许可与 attribution（详见 [LICENSE](./LICENSE) 数据章节）：
+  - NASA Blue Marble（NASA 公共领域）
+  - ETOPO1 高程（NOAA NCEI 公共领域）
+  - Natural Earth 边界/标签（公共领域）
+  - ERA5 风场（ECMWF/Copernicus C3S，含 modified Copernicus 信息免责声明）

@@ -1,0 +1,43 @@
+MIT License
+
+Copyright (c) 2026 rance1230
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Data Asset Licenses (not covered by the MIT license above)
+
+The bundled data assets retain their original licenses and attribution. The MIT
+license above applies to the project's source code only.
+
+- **NASA Blue Marble NG** texture (`public/assets/earth/blue-marble-*.jpg`) —
+  NASA imagery, public domain. Credit: NASA Earth Observatory.
+- **ETOPO1** heightmap / normal map (`public/assets/earth/etopo1-*.png`) —
+  NOAA NCEI, public domain. Credit: NOAA National Centers for Environmental
+  Information.
+- **Natural Earth** boundaries & labels (`public/assets/boundaries/`,
+  `public/assets/labels/`) — public domain. Credit: Natural Earth
+  (naturalearthdata.com).
+- **ERA5 10m wind** frames (`public/data/era5/`) — produced by ECMWF /
+  Copernicus Climate Change Service (C3S), accessed via ARCO-ERA5 on Google
+  Cloud Public Datasets. Contains modified Copernicus Climate Change Service
+  information [2024]. Neither the European Commission nor ECMWF is responsible
+  for any use of the downstream products. See `docs/ERA5-DATA-PROVENANCE.md`
+  for the full citation.

@@ -1,8 +1,12 @@
 {
-  "name": "earth-wind-globe-handoff",
+  "name": "earth-wind-globe",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
