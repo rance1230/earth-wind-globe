@@ -89,8 +89,11 @@ export class EarthScene {
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
-    this.controls.minDistance = 3.2;
-    this.controls.maxDistance = 9;
+    // C1: allow deeper zoom into the surface (radius=2, so 2.15 grazes the
+    // terrain/atmosphere shell) and a wider pull-back range.
+    this.controls.minDistance = 2.18;
+    this.controls.maxDistance = 12;
+    this.controls.zoomSpeed = 0.8;
 
     // A1: realistic sun as the key light. Direction is updated from the current
     // wind frame UTC time (subsolar point); a strong night-side hemisphere fill

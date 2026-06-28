@@ -142,6 +142,34 @@ test(`earth map falls back honestly when the texture is missing`, async ({ page 
   );
 });
 
+test(`C1 deeper zoom is supported and saves a zoom screenshot`, async ({ page }, testInfo) => {
+  // PLAN-V3 C1: the camera can zoom closer to the surface than the old floor.
+  test.setTimeout(180000);
+  await page.setViewportSize({ width: 1280, height: 1280 });
+  await page.goto("/?nobloom=1");
+  await page.waitForFunction(
+    () => window.__viz && window.__viz.ready === true && window.__viz.earthMapReady() === true,
+    null,
+    { timeout: 30000 }
+  );
+  await page.waitForTimeout(800);
+  // Zoom in via wheel until near the floor, then read the distance.
+  const canvas = page.locator("#globe-canvas");
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  for (let i = 0; i < 30; i += 1) await page.mouse.wheel(0, -240);
+  await page.waitForTimeout(800);
+  const dist = await page.evaluate(() => window.__viz.cameraDistance());
+  // radius is 2; minDistance floor is now 2.18, so a deep zoom lands < 2.6.
+  expect(dist, "camera can zoom closer than the old 3.2 floor").toBeLessThan(2.6);
+  await page.evaluate(() => window.__viz.setRenderFreeze(true));
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: resolveScreen("desktop-zoom.png") });
+  const stat = fs.statSync(resolveScreen("desktop-zoom.png"));
+  expect(stat.size).toBeGreaterThan(2000);
+  testInfo.attach("c1-zoom-distance", { body: String(dist), contentType: "text/plain" });
+});
+
 test(`animates while running and freezes when paused`, async ({ page }, testInfo) => {
   test.setTimeout(300000); // 4 full-viewport screenshots under SwiftShader
   const project = projectFromInfo(testInfo);

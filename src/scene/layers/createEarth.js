@@ -64,7 +64,11 @@ export function createEarth(radius) {
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.wrapS = THREE.RepeatWrapping;
-      tex.anisotropy = 8;
+      // C1: high anisotropy + trilinear mip filtering keep the texture crisp when
+      // zoomed in and avoid moiré/distant blur. generateMipmaps defaults true.
+      tex.anisotropy = 16;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
       material.map = tex;
       material.needsUpdate = true;
       fallback.dispose();
