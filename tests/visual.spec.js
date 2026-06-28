@@ -138,6 +138,21 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   const binfo = await page.evaluate(() => window.__viz.boundariesInfo());
   expect(binfo, "boundaries info present").toBeTruthy();
   expect(binfo.countrySegmentCount, "country boundary segments loaded").toBeGreaterThan(100);
+
+  // C4: Natural Earth labels loaded; China cities bilingual; some visible.
+  await page.waitForFunction(() => window.__viz.labelsStatus() === "ready", null, {
+    timeout: 30000
+  });
+  const linfo = await page.evaluate(() => window.__viz.labelsInfo());
+  expect(linfo, "labels info present").toBeTruthy();
+  expect(linfo.labelCount, "labels loaded").toBeGreaterThan(50);
+  expect(linfo.bilingualCount, "China bilingual labels present").toBeGreaterThan(0);
+  // Some labels must actually be rendered (declutter shows the big ones).
+  await page.evaluate(() => window.__viz.setRenderFreeze(false));
+  await page.waitForTimeout(600);
+  const visibleCount = await page.locator(".globe-label:visible").count();
+  expect(visibleCount, "some labels visible after declutter").toBeGreaterThan(0);
+  await page.evaluate(() => window.__viz.setRenderFreeze(true));
 });
 
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {

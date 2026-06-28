@@ -98,10 +98,34 @@ body {
   border-color: rgba(220, 180, 90, 0.5);
 }
 
+/* C4 globe labels (DOM, projected + decluttered). */
+.globe-label {
+  position: absolute;
+  font-size: 10px;
+  line-height: 1.1;
+  color: #eaf6ff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  transform: translateZ(0);
+}
+
+.globe-label--capital {
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.globe-label[data-bilingual="1"] {
+  color: #ffe9a8;
+}
+
 /* Recording / demo mode (task 7): hide UI for clean capture. Use visibility
    (not opacity) so Playwright's isVisible() correctly reports hidden. */
 body.demo-mode .hud,
-body.demo-mode .controls {
+body.demo-mode .controls,
+body.demo-mode .globe-labels {
   visibility: hidden;
   pointer-events: none;
 }

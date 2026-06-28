@@ -18,6 +18,7 @@ import { createAtmosphere } from "./layers/createAtmosphere.js";
 import { createWindLayer } from "./layers/createWindLayer.js";
 import { createSatelliteLayer } from "./layers/createSatelliteLayer.js";
 import { createBoundariesLayerAsync } from "./layers/createBoundariesLayer.js";
+import { createLabelsLayerAsync } from "./layers/createLabelsLayer.js";
 import { loadEra5WindFrame } from "../data/era5/loadEra5WindFrame.js";
 import { traceWindStreamlines } from "../data/era5/traceWindStreamlines.js";
 import {
@@ -165,11 +166,36 @@ export class EarthScene {
     this.boundariesStatus = "loading";
     this.loadBoundaries();
 
+    // C4: async DOM labels load (Natural Earth populated places; China bilingual).
+    this.labelsStatus = "loading";
+    this.loadLabels();
+
     // Async ERA5 load (task 3). Wind starts as synthetic so the globe renders
     // immediately; if a validated ERA5 frame arrives we swap the wind layer to
     // ERA5-driven streamlines. Missing/invalid frames are reported honestly.
     markLoading();
     this.loadEra5();
+  }
+
+  async loadLabels() {
+    try {
+      const layer = await createLabelsLayerAsync(CONFIG.radius);
+      this.labelsLayer = layer;
+      this.labelsStatus = layer.status;
+      // Mount the label DOM container over the canvas.
+      if (this.canvas && this.canvas.parentElement) {
+        this.canvas.parentElement.appendChild(layer.container);
+      }
+      this.labelsInfo = {
+        labelCount: layer.labelCount,
+        bilingualCount: layer.bilingualCount,
+        source: "naturalEarth110m"
+      };
+    } catch (err) {
+      this.labelsStatus = "missing";
+      // eslint-disable-next-line no-console
+      console.warn("[EarthScene] labels load failed:", err);
+    }
   }
 
   async loadBoundaries() {
@@ -334,6 +360,11 @@ export class EarthScene {
     }
     for (const layer of this.layers) layer.update?.(elapsed, delta);
     this.controls.update();
+    // C4: project DOM labels each frame (declutter + back-face cull).
+    if (this.labelsLayer) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.labelsLayer.update(this.camera, rect, CONFIG.radius);
+    }
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
   }
@@ -440,6 +471,11 @@ export class EarthScene {
       // C3 boundaries hooks.
       boundariesStatus: () => this.boundariesStatus,
       boundariesInfo: () => this.boundariesLayerInfo ?? null,
+      // C4 labels hooks.
+      labelsStatus: () => this.labelsStatus,
+      labelsInfo: () => this.labelsInfo ?? null,
+      visibleLabelCount: () =>
+        document ? document.querySelectorAll(".globe-label:not([style*='display: none'])").length : 0,
       setPaused: (v) => this.setPaused(v),
       setQuality: (q) => this.setQuality(q),
       resetCamera: () => this.resetCamera()
