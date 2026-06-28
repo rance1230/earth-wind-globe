@@ -52,8 +52,11 @@ export async function createLabelsLayerAsync(radius) {
     labelCount: labels.length,
     bilingualCount: labels.filter((l) => l.nameZh).length,
     // Project each label to screen, hide back-facing + declutter by overlap.
-    update(camera, canvasRect, radiusVal) {
+    // rootRotationY: the earth root group's Y rotation — labels must rotate with
+    // the globe so they sit on the same geography as the texture/boundaries.
+    update(camera, canvasRect, radiusVal, rootRotationY = 0) {
       if (els.length === 0) return;
+      const yAxis = new THREE.Vector3(0, 1, 0);
       // Track screen rects of shown labels for greedy declutter (labels are
       // population-sorted, so bigger cities win).
       const placed = [];
@@ -65,6 +68,10 @@ export async function createLabelsLayerAsync(radius) {
         const lonR = THREE.MathUtils.degToRad(label.lon);
         const r = radiusVal;
         pos.set(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), r * Math.cos(latR) * Math.sin(lonR));
+        // Apply the globe's spin so the label's geographic anchor matches the
+        // rotated texture/boundaries (the root cause of misalignment: DOM labels
+        // used to ignore root.rotation.y while the globe spun under them).
+        if (rootRotationY !== 0) pos.applyAxisAngle(yAxis, rootRotationY);
         // Back-face cull: label normal (pos normalized) must face the camera.
         const normal = pos.clone().normalize();
         const toCam = camera.position.clone().sub(pos).normalize();

@@ -1,26 +1,12 @@
 import * as THREE from "three";
 
-// Atmosphere (PLAN-GLM5.2 task 5): keep the original glass shell and add a
-// fresnel rim glow on top. The rim is rendered on BackSide so it shows brightest
-// at the globe silhouette where the surface normal turns away from the view.
+// Atmosphere (PLAN-V3 fix): the old MeshPhysicalMaterial glass shell
+// (transmission/thickness/low roughness) reflected the RoomEnvironment as a
+// mirror-like glassy layer. It is removed; only the fresnel rim glow remains —
+// a soft blue halo at the globe silhouette that emits light instead of
+// reflecting it.
 export function createAtmosphere(radius) {
   const group = new THREE.Group();
-
-  // Original glass shell (unchanged, gives the planet its hazy envelope).
-  const glassMaterial = new THREE.MeshPhysicalMaterial({
-    color: "#a8f4ff",
-    transparent: true,
-    opacity: 0.16,
-    roughness: 0.08,
-    metalness: 0,
-    transmission: 0.4,
-    thickness: 0.18,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending
-  });
-  const glass = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.018, 96, 64), glassMaterial);
-  glass.renderOrder = 4;
-  group.add(glass);
 
   // Fresnel rim glow: slightly larger sphere, BackSide, additive.
   const rimMaterial = new THREE.ShaderMaterial({

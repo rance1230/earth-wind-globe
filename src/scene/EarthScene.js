@@ -113,13 +113,13 @@ export class EarthScene {
     // Night-side fill: sky tint over a dim ground, lifted enough that the dark
     // hemisphere's terrain/labels stay readable (max channel > background floor)
     // but clearly dimmer than the sun-lit day side.
-    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.8);
+    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.9);
     this.scene.add(this.nightFill, this.root);
     // A modest ambient lift so the dark hemisphere's terrain stays above the
     // screenshot background-detection floor (max channel > ~58), keeping labels
     // and geography readable on the night side while the sun-lit day side is
     // still clearly brighter.
-    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 0.7);
+    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 0.8);
     this.scene.add(this.nightAmbient);
     this.nightFillEnabled = true;
     // Initial sun direction from the default ERA5 frame time; re-applied on
@@ -406,10 +406,11 @@ export class EarthScene {
     }
     for (const layer of this.layers) layer.update?.(elapsed, delta);
     this.controls.update();
-    // C4: project DOM labels each frame (declutter + back-face cull).
+    // C4: project DOM labels each frame (declutter + back-face cull). Pass the
+    // globe's Y rotation so labels sit on the same geography as the texture.
     if (this.labelsLayer) {
       const rect = this.canvas.getBoundingClientRect();
-      this.labelsLayer.update(this.camera, rect, CONFIG.radius);
+      this.labelsLayer.update(this.camera, rect, CONFIG.radius, this.root.rotation.y);
     }
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);

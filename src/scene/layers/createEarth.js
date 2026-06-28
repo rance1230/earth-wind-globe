@@ -52,13 +52,15 @@ export function createEarth(radius) {
   fallback.anisotropy = 4;
 
   // A1: no emissive — the surface is lit by a realistic sun + night-side fill.
-  // Matte land (roughness ~0.9) avoids specular "glow" highlights.
+  // Fully matte (roughness 1.0) to eliminate the specular sun-spot highlight,
+  // and envMapIntensity 0 removes the RoomEnvironment indoor reflections.
   const material = new THREE.MeshStandardMaterial({
     map: fallback,
     emissive: new THREE.Color(0x000000),
     emissiveIntensity: 0,
-    roughness: 0.9,
+    roughness: 1.0,
     metalness: 0.0,
+    envMapIntensity: 0,
     // C2: terrain relief via ETOPO1 displacement (applied after heightmap loads).
     displacementScale: 0,
     displacementBias: 0
