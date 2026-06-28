@@ -9,9 +9,10 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   // SwiftShader software rendering: rendering is fast (~10ms/frame) but each
-  // page.screenshot triggers a multi-second ReadPixels stall. Tests do several
-  // screenshots, so allow very generous per-test time.
-  timeout: 360000,
+  // page.screenshot triggers a multi-second ReadPixels stall. The full suite
+  // runs ~30 min under SwiftShader at 1280x1280 (authorized by user). Allow
+  // generous per-test time.
+  timeout: 600000,
   reporter: [["list"]],
   use: {
     baseURL: "http://127.0.0.1:4173",
