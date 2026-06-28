@@ -124,10 +124,11 @@ function sampleBilinear(u, v, W, H, lat, lon, lonMin, lonMax, latMin, latMax) {
 function toSphere(latDeg, lonDeg, radius) {
   const lat = THREE.MathUtils.degToRad(latDeg);
   const lon = THREE.MathUtils.degToRad(lonDeg);
+  // Z sign negated to match SphereGeometry's equirect mapping.
   return new THREE.Vector3(
     radius * Math.cos(lat) * Math.cos(lon),
     radius * Math.sin(lat),
-    radius * Math.cos(lat) * Math.sin(lon)
+    -radius * Math.cos(lat) * Math.sin(lon)
   );
 }
 

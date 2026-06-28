@@ -6,14 +6,16 @@ import { syntheticSatellites } from "../../data/satellitesSynthetic.js";
 // Seeded fibonacci-sphere shell with an altitude band; drifts slowly.
 export function createSatelliteLayer(radius, opts = {}) {
   const count = opts.count ?? CONFIG.satelliteCount;
-  const { positions } = syntheticSatellites(radius * 1.22, { count, seed: CONFIG.seed });
+  // Stars sit on a far shell (4x Earth radius) so they don't crowd the view
+  // when zooming into the surface, and read as a distant star field.
+  const { positions } = syntheticSatellites(radius * 4, { count, seed: CONFIG.seed });
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
 
   const material = new THREE.PointsMaterial({
     color: "#ffffff",
-    size: 0.03,
+    size: 0.022,
     sizeAttenuation: true,
     transparent: true,
     opacity: 0.9,

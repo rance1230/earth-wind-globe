@@ -66,8 +66,8 @@ export function createEarth(radius) {
     displacementBias: 0
   });
 
-  // High subdivision so vertex displacement reads as real terrain relief (C2).
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 256, 192), material);
+  // High subdivision so vertex displacement reads as smooth real terrain relief.
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 320, 240), material);
 
   // 2) Asynchronously load the NASA Blue Marble texture; on success swap it in,
   // on failure keep the fallback and mark the source honestly.
@@ -105,12 +105,13 @@ export function createEarth(radius) {
     (hmap) => {
       hmap.wrapS = THREE.RepeatWrapping;
       hmap.anisotropy = 4;
+      hmap.minFilter = THREE.LinearMipmapLinearFilter;
       material.displacementMap = hmap;
-      // Modest scale so mountain ranges (Himalayas, Andes) read as relief
-      // without distorting the globe's silhouette. displacementBias centers the
-      // land-only (0..1) map around 0 so ocean stays on the base sphere.
-      material.displacementScale = 0.045;
-      material.displacementBias = -0.045;
+      // Stronger relief so mountain ranges (Himalayas, Andes, Rockies) read as
+      // clear 3D terrain when zoomed in. displacementBias centers the land-only
+      // (0..1) map around 0 so ocean stays on the base sphere.
+      material.displacementScale = 0.08;
+      material.displacementBias = -0.08;
       material.needsUpdate = true;
       _terrainReady = true;
     },

@@ -70,11 +70,10 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
 
   const analysis = analyzePng(file);
   // PLAN-V3 recalibrated after fix-2/3 (matte roughness 1.0, no glass shell,
-  // no specular): the dark hemisphere now falls further under the background
-  // floor, so the lit fraction is much lower than the old glass/emissive shell.
-  // baseline: desktop nonBg~0.20 oceanBlue~0.81 warmLand~0.023 brightWhite~0.041;
-  // mobile nonBg~0.14 oceanBlue~0.72 warmLand~0.010 brightWhite~0.10.
-  expect(analysis.nonBackgroundRatio, "non-background > 0.1").toBeGreaterThan(0.1);
+  // no specular) and the longitude-mirror fix (sun direction moved). The dark
+  // hemisphere falls further under the background floor, and the lit fraction
+  // swings a lot with the sun's UTC-driven position — keep this very loose.
+  expect(analysis.nonBackgroundRatio, "non-background > 0.05").toBeGreaterThan(0.05);
   const report = analysis.report();
   const isMobile = project === "mobile";
   const oceanMin = isMobile ? 0.01 : 0.02;

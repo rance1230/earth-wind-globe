@@ -67,7 +67,9 @@ export async function createLabelsLayerAsync(radius) {
         const latR = THREE.MathUtils.degToRad(label.lat);
         const lonR = THREE.MathUtils.degToRad(label.lon);
         const r = radiusVal;
-        pos.set(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), r * Math.cos(latR) * Math.sin(lonR));
+        // Z sign negated to match SphereGeometry's equirect mapping (texture
+        // longitude λ is at z = -sin(λ)); +sin would mirror everything.
+        pos.set(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), -r * Math.cos(latR) * Math.sin(lonR));
         // Apply the globe's spin so the label's geographic anchor matches the
         // rotated texture/boundaries (the root cause of misalignment: DOM labels
         // used to ignore root.rotation.y while the globe spun under them).

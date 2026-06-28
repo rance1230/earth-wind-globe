@@ -16,7 +16,8 @@ function projectPolyline(ring, radius) {
     const latR = THREE.MathUtils.degToRad(lat);
     const lonR = THREE.MathUtils.degToRad(lon);
     const r = radius;
-    verts.push(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), r * Math.cos(latR) * Math.sin(lonR));
+    // Z sign negated to match SphereGeometry's equirect mapping.
+    verts.push(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), -r * Math.cos(latR) * Math.sin(lonR));
   }
   return verts;
 }

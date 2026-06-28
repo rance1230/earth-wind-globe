@@ -34,14 +34,18 @@ import {
 // Africa / Arabian Peninsula / Indian Ocean.
 const INTRO_ROTATION_Y = Math.PI * 0.5;
 
-// lon/lat (degrees) -> unit vector on the sphere (ECEF, matches equirect map).
+// lon/lat (degrees) -> unit vector on the sphere matching the SphereGeometry +
+// equirect texture. NOTE: SphereGeometry places texture longitude λ at
+// z = -r·cos(lat)·sin(λ) (its vertex.x = -r·cos(phi)·sin(theta) convention), so
+// the Z component's sign must be NEGATED relative to a naive cos/sin lon map —
+// otherwise everything is mirror-flipped (East Asia shows up over the Americas).
 function llrToVec(lonDeg, latDeg, r) {
   const lat = THREE.MathUtils.degToRad(latDeg);
   const lon = THREE.MathUtils.degToRad(lonDeg);
   return new THREE.Vector3(
     r * Math.cos(lat) * Math.cos(lon),
     r * Math.sin(lat),
-    r * Math.cos(lat) * Math.sin(lon)
+    -r * Math.cos(lat) * Math.sin(lon)
   );
 }
 
@@ -99,6 +103,9 @@ export class EarthScene {
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
+    // No azimuth/polar angle limits are set: OrbitControls defaults allow a full
+    // 360° spin in any direction (horizontal + vertical). Earth rotates freely.
+    this.controls.enablePan = false;
     // C1: allow deeper zoom into the surface (radius=2, so 2.15 grazes the
     // terrain/atmosphere shell) and a wider pull-back range.
     this.controls.minDistance = 2.18;
@@ -520,7 +527,7 @@ export class EarthScene {
       // C2 terrain relief hooks.
       terrainReady: () => terrainReady(),
       terrainSource: () => terrainSource(),
-      terrainDisplacementScale: () => 0.045,
+      terrainDisplacementScale: () => 0.08,
       // C3 boundaries hooks.
       boundariesStatus: () => this.boundariesStatus,
       boundariesInfo: () => this.boundariesLayerInfo ?? null,

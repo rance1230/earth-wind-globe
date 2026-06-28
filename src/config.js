@@ -1,7 +1,9 @@
 // Quality presets consumed by setQuality() (dispose + rebuild). PLAN-GLM5.2 §4.2.
+// satelliteCount reduced: stars now sit on a far shell (4x radius) so fewer are
+// needed and they read as a sparse distant field rather than a dense halo.
 export const QUALITY = {
-  high: { windSegments: 1000, windPoints: 14, satelliteCount: 1600, pixelRatioCap: 2 },
-  low: { windSegments: 500, windPoints: 10, satelliteCount: 800, pixelRatioCap: 1.5 }
+  high: { windSegments: 1000, windPoints: 14, satelliteCount: 600, pixelRatioCap: 2 },
+  low: { windSegments: 500, windPoints: 10, satelliteCount: 300, pixelRatioCap: 1.5 }
 };
 
 export const CONFIG = {

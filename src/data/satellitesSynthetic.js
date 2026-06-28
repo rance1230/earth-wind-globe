@@ -19,7 +19,9 @@ export function syntheticSatellites(radius, opts = {}) {
     const y = 1 - (i / Math.max(1, count - 1)) * 2; // 1..-1
     const r = Math.sqrt(Math.max(0, 1 - y * y));
     const theta = golden * i;
-    const altitude = radius + 0.18 + rand() * 0.42; // height band above globe
+    // Altitude band proportional to the (now much larger) shell radius so the
+    // spread reads as depth, not a thin shell hugging one distance.
+    const altitude = radius + radius * 0.06 + rand() * radius * 0.14;
     positions[i * 3] = Math.cos(theta) * r * altitude;
     positions[i * 3 + 1] = y * altitude;
     positions[i * 3 + 2] = Math.sin(theta) * r * altitude;
