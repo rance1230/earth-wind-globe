@@ -123,6 +123,24 @@ export function createEarth(radius) {
     }
   );
 
+  // 4) B-2: load the ETOPO1-derived normal map for fine surface relief when
+  // zoomed in (adds micro-terrain shading without needing a higher-res color map).
+  const NORMALMAP_URL = "/assets/earth/etopo1-normalmap-720x360.png";
+  loader.load(
+    NORMALMAP_URL,
+    (nmap) => {
+      nmap.wrapS = THREE.RepeatWrapping;
+      nmap.anisotropy = 4;
+      material.normalMap = nmap;
+      material.normalScale = new THREE.Vector2(0.8, 0.8);
+      material.needsUpdate = true;
+    },
+    undefined,
+    () => {
+      // normal map optional; surface just stays smoother.
+    }
+  );
+
   return mesh;
 }
 

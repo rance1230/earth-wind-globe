@@ -28,6 +28,22 @@
       "fileSizeBytes": 54378,
       "sha256": "8d14a5ea06fea4182a0f63340dde7864218f53d205327533bf6333a03a2aeba9",
       "generatedAt": "2026-06-28T02:57:10.940Z"
+    },
+    {
+      "kind": "china_provinces",
+      "asset": "china-provinces-10m.json",
+      "naturalEarthName": "ne_10m_admin_1_states_provinces",
+      "source": "Natural Earth 10m admin-1 (public domain, China subset)",
+      "sourceUrl": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
+      "scale": "1:10m",
+      "credit": "Natural Earth (naturalearthdata.com)",
+      "licenseNote": "Natural Earth is public domain. Free for any use; no permission needed.",
+      "segmentCount": 99,
+      "provinceCount": 32,
+      "bilingualPolicy": "China provinces carry nameZh (name_zh) where available",
+      "fileSizeBytes": 1207981,
+      "sha256": "e6be6f33a426d491e8ae87b22c24e48b5325fd9c2db7a02115a6b3f1d50ff5e6",
+      "generatedAt": "2026-06-28T09:41:29.861Z"
     }
   ]
 }

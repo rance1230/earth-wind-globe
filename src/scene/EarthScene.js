@@ -220,7 +220,8 @@ export class EarthScene {
       this.boundariesLayerInfo = {
         countrySegmentCount: layer.countrySegmentCount,
         stateSegmentCount: layer.stateSegmentCount,
-        source: "naturalEarth110m"
+        chinaSegmentCount: layer.chinaSegmentCount ?? 0,
+        source: "naturalEarth110m+10m"
       };
     } catch (err) {
       this.boundariesStatus = "missing";
