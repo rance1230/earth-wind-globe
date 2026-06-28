@@ -1,6 +1,6 @@
 # 3D 风场地球可视化
 
-[![Deploy to GitHub Pages](https://github.com/rance1230/earth-wind-globe/actions/workflows/deploy.yml/badge.svg)](https://github.com/rance1230/earth-wind-globe/actions/workflows/deploy.yml)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://rance1230.github.io/earth-wind-globe/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 ![Three.js](https://img.shields.io/badge/Three.js-r0.184-black)
 ![Vite](https://img.shields.io/badge/Vite-r8.1-646CFF)
@@ -294,13 +294,20 @@ QUALITY = {
 
 ## 部署
 
-### GitHub Pages（已配置，自动部署）
+### GitHub Pages（已部署，在线可访问）
 
-本项目已配 `.github/workflows/deploy.yml`：每次 push 到 `main` 自动构建并部署到 GitHub Pages。
+**在线 Demo**：<https://rance1230.github.io/earth-wind-globe/>
 
-- **在线地址**：<https://rance1230.github.io/earth-wind-globe/>
-- **原理**：CI 跑 `npm ci` → `npm run build` → 上传 `dist/` 到 Pages。`vite.config.js` 已设 `base: "./"` 兼容项目子路径。
-- **首次开启**（新 fork 后）：repo Settings → Pages → Source 选 `GitHub Actions`。
+本项目通过把 `dist/` 构建产物推送到 `gh-pages` 分支部署到 GitHub Pages（`vite.config.js` 已设 `base: "./"` 兼容项目子路径）。重新部署：
+
+```bash
+npm run build
+node scripts/deploy_ghpages_api.mjs   # 用 gh CLI 把 dist/ 推到 gh-pages 分支
+```
+
+> 也可用 `gh-pages` npm 包或 GitHub Actions 自动化（见下）。
+
+### 其他静态托管（Vercel / Netlify / Cloudflare Pages）
 
 ### 其他静态托管（Vercel / Netlify / Cloudflare Pages）
 
