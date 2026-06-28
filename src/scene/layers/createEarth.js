@@ -13,6 +13,7 @@ const EARTH_TEXTURE_URL = "/assets/earth/blue-marble-5400x2700.jpg";
 // the real texture is actually on screen; proceduralFallback is honest.
 let _mapSource = "proceduralFallback"; // "nasaBlueMarble" | "proceduralFallback"
 let _mapReady = false;
+let _terrainReady = false; // C2: ETOPO1 displacement applied
 let _onReadyCbs = [];
 
 export function earthMapSource() {
@@ -20,6 +21,12 @@ export function earthMapSource() {
 }
 export function earthMapReady() {
   return _mapReady;
+}
+export function terrainReady() {
+  return _terrainReady;
+}
+export function terrainSource() {
+  return _terrainReady ? "etopo1" : "none";
 }
 export function earthMapAttribution() {
   return _mapSource === "nasaBlueMarble"
@@ -51,10 +58,14 @@ export function createEarth(radius) {
     emissive: new THREE.Color(0x000000),
     emissiveIntensity: 0,
     roughness: 0.9,
-    metalness: 0.0
+    metalness: 0.0,
+    // C2: terrain relief via ETOPO1 displacement (applied after heightmap loads).
+    displacementScale: 0,
+    displacementBias: 0
   });
 
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), material);
+  // High subdivision so vertex displacement reads as real terrain relief (C2).
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 256, 192), material);
 
   // 2) Asynchronously load the NASA Blue Marble texture; on success swap it in,
   // on failure keep the fallback and mark the source honestly.
@@ -81,6 +92,31 @@ export function createEarth(radius) {
       // eslint-disable-next-line no-console
       console.warn("[createEarth] NASA texture load failed, using proceduralFallback:", err);
       _markReady("proceduralFallback");
+    }
+  );
+
+  // 3) C2: load the ETOPO1 heightmap and apply terrain displacement. On failure
+  // the globe stays a smooth sphere (displacementScale 0) — never claim terrain.
+  const HEIGHTMAP_URL = "/assets/earth/etopo1-heightmap-720x360.png";
+  loader.load(
+    HEIGHTMAP_URL,
+    (hmap) => {
+      hmap.wrapS = THREE.RepeatWrapping;
+      hmap.anisotropy = 4;
+      material.displacementMap = hmap;
+      // Modest scale so mountain ranges (Himalayas, Andes) read as relief
+      // without distorting the globe's silhouette. displacementBias centers the
+      // land-only (0..1) map around 0 so ocean stays on the base sphere.
+      material.displacementScale = 0.045;
+      material.displacementBias = -0.045;
+      material.needsUpdate = true;
+      _terrainReady = true;
+    },
+    undefined,
+    (err) => {
+      // eslint-disable-next-line no-console
+      console.warn("[createEarth] ETOPO1 heightmap load failed, smooth globe:", err);
+      _terrainReady = false;
     }
   );
 

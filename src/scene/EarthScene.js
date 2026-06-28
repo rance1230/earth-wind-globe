@@ -10,7 +10,9 @@ import {
   earthMapSource,
   earthMapReady,
   earthMapAttribution,
-  onEarthMapReady
+  onEarthMapReady,
+  terrainReady,
+  terrainSource
 } from "./layers/createEarth.js";
 import { createAtmosphere } from "./layers/createAtmosphere.js";
 import { createWindLayer } from "./layers/createWindLayer.js";
@@ -407,6 +409,10 @@ export class EarthScene {
       setRenderFreeze: (v) => this.setRenderFreeze(v),
       earthMapSource: () => earthMapSource(),
       earthMapAttribution: () => earthMapAttribution(),
+      // C2 terrain relief hooks.
+      terrainReady: () => terrainReady(),
+      terrainSource: () => terrainSource(),
+      terrainDisplacementScale: () => 0.045,
       setPaused: (v) => this.setPaused(v),
       setQuality: (q) => this.setQuality(q),
       resetCamera: () => this.resetCamera()

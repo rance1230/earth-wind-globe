@@ -34,6 +34,10 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   await page.waitForFunction(() => window.__viz.earthMapReady() === true, null, {
     timeout: 30000
   });
+  // C2: also wait for the ETOPO1 terrain heightmap to load before screenshot.
+  await page.waitForFunction(() => window.__viz.terrainReady() === true, null, {
+    timeout: 30000
+  });
   await page.waitForTimeout(900);
 
   // Freeze the render loop for the screenshot: SwiftShader's per-frame
@@ -120,6 +124,12 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
       contentType: "application/json"
     });
   }
+
+  // C2: terrain relief displacement is applied (ETOPO1 heightmap loaded).
+  const terrainReady = await page.evaluate(() => window.__viz.terrainReady());
+  expect(terrainReady, "ETOPO1 terrain displacement applied").toBe(true);
+  const terrainSource = await page.evaluate(() => window.__viz.terrainSource());
+  expect(terrainSource, "terrain source is etopo1").toBe("etopo1");
 });
 
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {
