@@ -175,6 +175,54 @@ test(`earth map falls back honestly when the texture is missing`, async ({ page 
   );
 });
 
+test(`B2 ERA5 wind field evolves across frames (t0 and t1 screenshots)`, async ({ page }, testInfo) => {
+  // PLAN-V3 B2: the multi-frame series loads, frame stepping changes the active
+  // frame time, and the wind field evolves. Save t0/t1 reference screenshots.
+  test.setTimeout(180000);
+  await page.setViewportSize({ width: 1280, height: 1280 });
+  await page.goto("/?nobloom=1");
+  await page.waitForFunction(
+    () => window.__viz.ready === true && window.__viz.windSource() === "era5",
+    null,
+    { timeout: 30000 }
+  );
+  await page.waitForTimeout(600);
+  const count = await page.evaluate(() => window.__viz.windFrameCount());
+  expect(count, "multi-frame series has >= 2 frames").toBeGreaterThanOrEqual(2);
+
+  // Frame 0 (t0): force index 0, capture.
+  await page.evaluate(() => {
+    window.__viz.setWindPlaying(false);
+    if (window.__viz.windFrameIndex() !== 0) window.__viz.stepWindFrame(-999); // back to start
+  });
+  // step to a known frame 0 by stepping backwards until wrap; simpler: reload index
+  await page.evaluate(() => {
+    while (window.__viz.windFrameIndex() !== 0) window.__viz.stepWindFrame(-1);
+  });
+  await page.waitForTimeout(500);
+  const t0Time = await page.evaluate(() => window.__viz.windFrameTime());
+  const t0Index = await page.evaluate(() => window.__viz.windFrameIndex());
+  await page.evaluate(() => window.__viz.setRenderFreeze(true));
+  await page.screenshot({ path: resolveScreen("desktop-t0.png") });
+  await page.evaluate(() => window.__viz.setRenderFreeze(false));
+
+  // Step to frame 1 (t1): time must change.
+  await page.evaluate(() => window.__viz.stepWindFrame(1));
+  await page.waitForTimeout(500);
+  const t1Time = await page.evaluate(() => window.__viz.windFrameTime());
+  const t1Index = await page.evaluate(() => window.__viz.windFrameIndex());
+  expect(t1Index, "frame index advanced").not.toBe(t0Index);
+  expect(t1Time, "frame time changed across step").not.toBe(t0Time);
+  await page.evaluate(() => window.__viz.setRenderFreeze(true));
+  await page.screenshot({ path: resolveScreen("desktop-t1.png") });
+  const sz = fs.statSync(resolveScreen("desktop-t1.png")).size;
+  expect(sz).toBeGreaterThan(2000);
+  testInfo.attach("b2-frames", {
+    body: JSON.stringify({ count, t0: { index: t0Index, time: t0Time }, t1: { index: t1Index, time: t1Time } }),
+    contentType: "application/json"
+  });
+});
+
 test(`C1 deeper zoom is supported and saves a zoom screenshot`, async ({ page }, testInfo) => {
   // PLAN-V3 C1: the camera can zoom closer to the surface than the old floor.
   test.setTimeout(180000);

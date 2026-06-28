@@ -11,17 +11,26 @@ import fs from "node:fs";
 import path from "node:path";
 import { validateEra5WindFrame } from "../../src/data/era5/validateEra5WindFrame.js";
 
-function loadTarget(argPath) {
+function loadTargets(argPath) {
   const raw = fs.readFileSync(argPath, "utf8");
   const parsed = JSON.parse(raw);
-  // A manifest has a `frame` pointer and the data arrays (`u`/`v`) are absent.
-  // A frame has the `u` array directly. Detect manifest by pointer + no `u`.
-  if (parsed && typeof parsed === "object" && parsed.frame && !Array.isArray(parsed.u)) {
-    const dir = path.dirname(path.resolve(argPath));
-    const framePath = path.resolve(dir, parsed.frame);
-    return { frame: JSON.parse(fs.readFileSync(framePath, "utf8")), source: framePath };
+  const dir = path.dirname(path.resolve(argPath));
+  const targets = [];
+  // Multi-frame series manifest (B1): validate every frame.
+  if (parsed && Array.isArray(parsed.frames) && parsed.frames.length > 0 && !Array.isArray(parsed.u)) {
+    for (const fr of parsed.frames) {
+      const fp = path.resolve(dir, fr.file);
+      targets.push({ frame: JSON.parse(fs.readFileSync(fp, "utf8")), source: fp });
+    }
+    return targets;
   }
-  return { frame: parsed, source: path.resolve(argPath) };
+  // Single-frame manifest: pointer + no `u` array.
+  if (parsed && typeof parsed === "object" && parsed.frame && !Array.isArray(parsed.u)) {
+    const framePath = path.resolve(dir, parsed.frame);
+    return [{ frame: JSON.parse(fs.readFileSync(framePath, "utf8")), source: framePath }];
+  }
+  // A direct frame JSON.
+  return [{ frame: parsed, source: path.resolve(argPath) }];
 }
 
 function main() {
@@ -30,32 +39,30 @@ function main() {
     console.error("usage: node scripts/era5/validate_frame.mjs <manifest-or-frame.json>");
     process.exit(2);
   }
-  let target;
+  let targets;
   try {
-    target = loadTarget(argPath);
+    targets = loadTargets(argPath);
   } catch (err) {
     console.error(`failed to load ${argPath}: ${err.message}`);
     process.exit(2);
   }
-  const { frame, source } = target;
-  const { ok, errors, stats } = validateEra5WindFrame(frame);
-
-  console.log(`frame: ${source}`);
-  console.log(`schemaVersion: ${frame.schemaVersion}`);
-  console.log(`source: ${frame.source}`);
-  console.log(`producer: ${frame.producer}`);
-  console.log(`timeUtc: ${frame.timeUtc}`);
-  console.log(`grid: ${JSON.stringify(frame.grid)}`);
-  console.log(`declared speedStats: ${JSON.stringify(frame.speedStats)}`);
-  console.log(`recomputed stats: ${JSON.stringify(stats)}`);
-  if (ok) {
-    console.log("RESULT: VALID");
-    process.exit(0);
-  } else {
-    console.log("RESULT: INVALID");
-    for (const e of errors) console.log(`  - ${e}`);
-    process.exit(1);
+  let allOk = true;
+  for (const { frame, source } of targets) {
+    const { ok, errors, stats } = validateEra5WindFrame(frame);
+    console.log(`frame: ${source}`);
+    console.log(`schemaVersion: ${frame.schemaVersion}`);
+    console.log(`timeUtc: ${frame.timeUtc}`);
+    console.log(`declared speedStats: ${JSON.stringify(frame.speedStats)}`);
+    console.log(`recomputed stats: ${JSON.stringify(stats)}`);
+    if (ok) {
+      console.log("RESULT: VALID");
+    } else {
+      console.log("RESULT: INVALID");
+      for (const e of errors) console.log(`  - ${e}`);
+      allOk = false;
+    }
   }
+  process.exit(allOk ? 0 : 1);
 }
 
 main();

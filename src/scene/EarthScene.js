@@ -19,7 +19,7 @@ import { createWindLayer } from "./layers/createWindLayer.js";
 import { createSatelliteLayer } from "./layers/createSatelliteLayer.js";
 import { createBoundariesLayerAsync } from "./layers/createBoundariesLayer.js";
 import { createLabelsLayerAsync } from "./layers/createLabelsLayer.js";
-import { loadEra5WindFrame } from "../data/era5/loadEra5WindFrame.js";
+import { loadEra5WindFrame, loadEra5WindSeries } from "../data/era5/loadEra5WindFrame.js";
 import { traceWindStreamlines } from "../data/era5/traceWindStreamlines.js";
 import {
   setActiveEra5,
@@ -71,6 +71,12 @@ export class EarthScene {
     this.era5Frame = null;
     this.era5Stats = null;
     this.windLayerKind = "devSynthetic"; // "era5" | "devSynthetic"
+    // V3 B1/B2: multi-frame series + playback.
+    this.era5Series = []; // [{ frame, stats, timeUtc }]
+    this.frameIndex = 0;
+    this.windPlaying = true;
+    this.frameAccum = 0;
+    this.frameInterval = 6.0; // seconds between frame steps at 1x
   }
 
   init() {
@@ -218,19 +224,31 @@ export class EarthScene {
 
   async loadEra5() {
     try {
-      const result = await loadEra5WindFrame();
-      if (result.status === "era5") {
-        this.era5Frame = result.frame;
-        this.era5Stats = result.stats;
+      // V3 B1/B2: load the full time-ordered series; fall back to single-frame.
+      const series = await loadEra5WindSeries();
+      if (series.status === "era5" && series.frames.length > 0) {
+        this.era5Series = series.frames;
+        this.frameIndex = 0;
+        const f0 = series.frames[0];
+        this.era5Frame = f0.frame;
+        this.era5Stats = f0.stats;
         this.rebuildWindLayerAsEra5();
       } else {
-        // Honest status: no ERA5 frame usable. Keep synthetic fallback running
-        // so the globe still animates, but label it devSynthetic, never era5.
-        markSyntheticActive();
-        this.windLayerKind = "devSynthetic";
-        this.updateWindSourceBadge();
-        // eslint-disable-next-line no-console
-        console.warn("[EarthScene] ERA5 frame unavailable, using devSynthetic wind:", result.reason);
+        // Single-frame fallback.
+        const result = await loadEra5WindFrame();
+        if (result.status === "era5") {
+          this.era5Series = [{ frame: result.frame, stats: result.stats, timeUtc: result.frame.timeUtc }];
+          this.frameIndex = 0;
+          this.era5Frame = result.frame;
+          this.era5Stats = result.stats;
+          this.rebuildWindLayerAsEra5();
+        } else {
+          markSyntheticActive();
+          this.windLayerKind = "devSynthetic";
+          this.updateWindSourceBadge();
+          // eslint-disable-next-line no-console
+          console.warn("[EarthScene] ERA5 frame unavailable, using devSynthetic wind:", result.reason);
+        }
       }
     } catch (err) {
       markMissing(String(err));
@@ -238,6 +256,24 @@ export class EarthScene {
       // eslint-disable-next-line no-console
       console.warn("[EarthScene] ERA5 load error:", err);
     }
+  }
+
+  // V3 B2: step to the next ERA5 frame in the series and rebuild the wind layer
+  // so the wind field evolves with time. Returns the new frame index.
+  stepWindFrame(direction = 1) {
+    if (this.era5Series.length < 2) return this.frameIndex;
+    const next = (this.frameIndex + direction + this.era5Series.length) % this.era5Series.length;
+    this.frameIndex = next;
+    const f = this.era5Series[next];
+    this.era5Frame = f.frame;
+    this.era5Stats = f.stats;
+    this.currentFrameTimeUtc = f.timeUtc;
+    this.rebuildWindLayerAsEra5();
+    return next;
+  }
+
+  setWindPlaying(v) {
+    this.windPlaying = !!v;
   }
 
   rebuildWindLayerAsEra5() {
@@ -269,6 +305,7 @@ export class EarthScene {
     this.layers = [this.windLayer, this.satelliteLayer];
     this.currentWindCount = this.windLayer.count ?? segments.length;
     this.windLayerKind = "era5";
+    this.currentFrameTimeUtc = this.era5Frame.timeUtc;
     setActiveEra5(this.era5Frame);
     this.updateWindSourceBadge();
   }
@@ -350,6 +387,15 @@ export class EarthScene {
     const delta = this.paused ? 0 : liveDelta;
     if (!this.paused) this.frozenElapsed = liveElapsed;
     this.root.rotation.y += delta * 0.08;
+    // B2: advance the ERA5 time series so the wind field evolves. Steps every
+    // frameInterval seconds while playing & not paused; pauses on freeze.
+    if (this.era5Series.length > 1 && this.windPlaying && !this.paused && !this.renderFrozen) {
+      this.frameAccum += delta;
+      if (this.frameAccum >= this.frameInterval) {
+        this.frameAccum = 0;
+        this.stepWindFrame(1);
+      }
+    }
     // A1: refresh the sun only when the wind frame time changes (not every
     // frame) so the canvas can settle for stable screenshots. The sun is in
     // world space and tracks the camera once per frame-time change.
@@ -454,6 +500,12 @@ export class EarthScene {
       windFrameTime: () => this.era5Frame?.timeUtc ?? null,
       windFrameStats: () => this.era5Stats ?? null,
       era5Ready: () => activeWindSource().isEra5,
+      // B2 multi-frame playback hooks.
+      windFrameCount: () => this.era5Series.length,
+      windFrameIndex: () => this.frameIndex,
+      windPlaying: () => this.windPlaying,
+      stepWindFrame: (d) => this.stepWindFrame(d),
+      setWindPlaying: (v) => this.setWindPlaying(v),
       // Earth map provenance hooks (PLAN-V2.1 task 4). Only nasaBlueMarble when
       // the real texture is on screen; proceduralFallback is honest otherwise.
       earthMapReady: () => earthMapReady(),

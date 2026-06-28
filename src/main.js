@@ -27,6 +27,23 @@ btnReset.addEventListener("click", () => {
   scene.resetCamera();
 });
 
+// V3 B2: ERA5 time-series controls (manual step + auto-play toggle).
+const btnWindStep = document.querySelector("#btn-wind-step");
+const btnWindPlay = document.querySelector("#btn-wind-play");
+function syncWindPlayLabel() {
+  const playing = scene.windPlaying;
+  btnWindPlay.textContent = playing ? "风场自动播放" : "风场已暂停";
+  btnWindPlay.setAttribute("aria-pressed", String(playing));
+}
+btnWindStep.addEventListener("click", () => {
+  scene.stepWindFrame(1);
+});
+btnWindPlay.addEventListener("click", () => {
+  scene.setWindPlaying(!scene.windPlaying);
+  syncWindPlayLabel();
+});
+syncWindPlayLabel();
+
 selectQuality.addEventListener("change", () => {
   scene.setQuality(selectQuality.value);
   // Quality switch rebuilds wind; refresh the source badge afterward.
