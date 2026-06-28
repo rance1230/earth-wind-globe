@@ -7,7 +7,7 @@ import * as THREE from "three";
 // is visible. Procedural canvas remains the synchronous fallback. matte land
 // (roughness ~0.9, metalness 0) avoids specular highlights that read as "glow".
 
-const EARTH_TEXTURE_URL = "/assets/earth/blue-marble-5400x2700.jpg";
+const EARTH_TEXTURE_URL = "assets/earth/blue-marble-5400x2700.jpg";
 
 // Module-level state read by EarthScene / __viz. Only nasaBlueMarble is set when
 // the real texture is actually on screen; proceduralFallback is honest.
@@ -99,7 +99,7 @@ export function createEarth(radius) {
 
   // 3) C2: load the ETOPO1 heightmap and apply terrain displacement. On failure
   // the globe stays a smooth sphere (displacementScale 0) — never claim terrain.
-  const HEIGHTMAP_URL = "/assets/earth/etopo1-heightmap-720x360.png";
+  const HEIGHTMAP_URL = "assets/earth/etopo1-heightmap-720x360.png";
   loader.load(
     HEIGHTMAP_URL,
     (hmap) => {
@@ -125,7 +125,7 @@ export function createEarth(radius) {
 
   // 4) B-2: load the ETOPO1-derived normal map for fine surface relief when
   // zoomed in (adds micro-terrain shading without needing a higher-res color map).
-  const NORMALMAP_URL = "/assets/earth/etopo1-normalmap-720x360.png";
+  const NORMALMAP_URL = "assets/earth/etopo1-normalmap-720x360.png";
   loader.load(
     NORMALMAP_URL,
     (nmap) => {

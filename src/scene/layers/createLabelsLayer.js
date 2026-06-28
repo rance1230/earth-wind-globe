@@ -19,7 +19,7 @@ export async function createLabelsLayerAsync(radius) {
   let status = STATUS.loading;
   let missingReason = null;
   try {
-    const resp = await fetch("/assets/labels/labels-110m.json", { cache: "no-cache" });
+    const resp = await fetch("assets/labels/labels-110m.json", { cache: "no-cache" });
     if (!resp.ok) {
       status = STATUS.missing;
       missingReason = "HTTP " + resp.status;

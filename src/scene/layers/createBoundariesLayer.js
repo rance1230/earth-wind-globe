@@ -93,7 +93,7 @@ export function buildBoundariesLayer(countriesSegs, statesSegs, chinaSegs, radiu
 // Decode the ETOPO1 heightmap PNG into a Uint8 grayscale array via canvas.
 async function loadHeightData() {
   try {
-    const resp = await fetch("/assets/earth/etopo1-heightmap-720x360.png", { cache: "no-cache" });
+    const resp = await fetch("assets/earth/etopo1-heightmap-720x360.png", { cache: "no-cache" });
     if (!resp.ok) return null;
     const blob = await resp.blob();
     const bmp = await createImageBitmap(blob);
@@ -115,7 +115,7 @@ async function loadHeightData() {
 }
 
 export async function createBoundariesLayerAsync(radius) {
-  const MANIFEST_URL = "/assets/boundaries/manifest.json";
+  const MANIFEST_URL = "assets/boundaries/manifest.json";
   try {
     const mresp = await fetch(MANIFEST_URL, { cache: "no-cache" });
     if (!mresp.ok) return emptyFallback("manifest HTTP " + mresp.status);
@@ -125,9 +125,9 @@ export async function createBoundariesLayerAsync(radius) {
     const states = entries.find((e) => e.kind === "states_provinces");
     const china = entries.find((e) => e.kind === "china_provinces");
     const [cData, sData, cnData, hmap] = await Promise.all([
-      countries ? fetch("/assets/boundaries/" + countries.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
-      states ? fetch("/assets/boundaries/" + states.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
-      china ? fetch("/assets/boundaries/" + china.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
+      countries ? fetch("assets/boundaries/" + countries.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
+      states ? fetch("assets/boundaries/" + states.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
+      china ? fetch("assets/boundaries/" + china.asset).then((r) => r.json()) : Promise.resolve({ segments: [] }),
       loadHeightData()
     ]);
     const hd = hmap ? hmap.data : null;
