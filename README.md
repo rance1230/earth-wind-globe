@@ -138,7 +138,9 @@ node scripts/era5/validate_frame.mjs public/data/era5/manifest.json   # 验证
 | 文件 | 内容 |
 |---|---|
 | `src/scene/EarthScene.js` | 场景编排：renderer/ACES/PMREM/OrbitControls/UnrealBloom 管线 + 状态机（paused/quality）+ `window.__viz` 测试钩子 + setQuality 的 dispose/rebuild + postprocessing 降级 |
-| `src/scene/layers/createEarth.js` | **NASA Blue Marble NG 真彩纹理**（5400×2700 无云，NASA Earth Observatory）+ 程序化 fallback + emissive 仪表风；异步加载，`earthMapSource()` 诚实标识来源 |
+| `src/scene/layers/createEarth.js` | **NASA Blue Marble NG 真彩纹理**（5400×2700）+ ETOPO1 3D 地形位移（C2）+ 真实太阳日照（A1，无 emissive 自发光）+ 程序化 fallback；`earthMapSource()`/`terrainReady()` 诚实标识 |
+| `src/scene/layers/createBoundariesLayer.js` | Natural Earth 国界+省界（C3），单 LineSegments draw call |
+| `src/scene/layers/createLabelsLayer.js` | Natural Earth 城市标签（C4），DOM 投影 + declutter；中国城市中英双语 |
 | `src/scene/layers/createAtmosphere.js` | 玻璃质感壳（MeshPhysicalMaterial）+ fresnel rim glow（BackSide ShaderMaterial） |
 | `src/scene/layers/createWindLayer.js` | 单 draw call `LineSegments`（合并几何）+ per-vertex color（ERA5 speed→cyan/white/amber/red）+ 流动 shader（uTime 推动 bright band，depth 近亮远淡） |
 | `src/scene/layers/createSatelliteLayer.js` | 单 draw call `THREE.Points`（fibonacci 球）+ 加色 + depthWrite:false |
@@ -196,14 +198,19 @@ QUALITY = {
   - `era5-wind-frame-v1` schema + loader + validator + streamline tracer
   - `windSource()` 真实数据源标识（绝不伪装）
   - recording mode + mobile 无控件重叠
-- **V2.1 — 高精度地球地图**（✅ **当前已完成**）
+- **V2.1 — 高精度地球地图**（✅ 已完成）
   - **NASA Blue Marble NG 无云真彩纹理**（5400×2700，NASA Earth Observatory）
-  - 异步加载 + 程序化 fallback + emissive 仪表风
-  - `earthMapSource()` 诚实标识（nasaBlueMarble / proceduralFallback）
-  - colorBuckets 阈值重标定 + fallback 诚实性测试
-  - 卫星仍为合成 fibonacci 球（V3 接 TLE）
-- **V3 — 高保真打磨**
-  - 接 TLE + satellite.js 真实轨道
+  - 异步加载 + 程序化 fallback + colorBuckets 重标定
+- **V3 — 三项改进**（✅ **当前已完成**）
+  - **A1 去高亮 + 真实日照**：移除 emissive 自发光，改 DirectionalLight 太阳（次太阳点）+ Hemisphere/Ambient 暗面柔光，可见昼夜终止线
+  - **B1/B2 多帧 ERA5 时间序列**：2 帧（2024-01-15 T00/T06）随时间演变，手动步进 + 自动播放控件
+  - **C1 更深 zoom**：minDistance 2.18（旧 3.2）+ 高各向异性纹理
+  - **C2 3D 地形起伏**：ETOPO1 高程位移（NOAA 公共领域）
+  - **C3 国界 + 省界**：Natural Earth 110m，单 draw call
+  - **C4 标签**：Natural Earth 城市标签，中国中英双语，DOM declutter 防拥挤
+- **V4 — 后续**
+  - 接 TLE + satellite.js 真实卫星轨道
+  - 加更多 ERA5 帧（更密集时间序列）
   - GPU 粒子 advection、调色、60fps 优化、镜头脚本
 
 ---
@@ -259,5 +266,6 @@ QUALITY = {
 - [x] **V1 实施（synthetic prototype，任务 0–7 全绿）**
 - [x] **V2 ERA5 数据驱动第一版（真实 ERA5 10m u/v，windSource()==="era5"）**
 - [x] **V2.1 高精度地球地图（NASA Blue Marble NG，earthMapSource()==="nasaBlueMarble"）**
-- [x] 验收（Playwright 14/14 + ERA5 frame validator + earth asset validator 通过）
-- [ ] V3 真实卫星（TLE）+ 高保真打磨
+- [x] **V3 三项改进（真实日照 / 多帧 ERA5 演变 / 深 zoom+地形+边界+中英标签）**
+- [x] 验收（Playwright 18/18 + ERA5 多帧 validator + earth asset validator + boundaries validator 通过）
+- [ ] V4 真实卫星（TLE）+ 高保真打磨
