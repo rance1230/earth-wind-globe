@@ -4,7 +4,7 @@ import { CONFIG } from "../config.js";
 // Synthetic satellite positions (PLAN-GLM5.2 §4.4 deterministic, task 4).
 // Fibonacci-sphere distribution gives an even, non-clumpy shell; a seeded PRNG
 // adds altitude jitter + a per-satellite orbital phase so the layer can drift.
-// Contract: { positions: Float32Array, sizes: Float32Array }.
+// Contract: { positions: Float32Array, sizes: Float32Array, phases: Float32Array }.
 export function syntheticSatellites(radius, opts = {}) {
   const count = opts.count ?? CONFIG.satelliteCount;
   const seed = opts.seed ?? CONFIG.seed;
@@ -12,7 +12,9 @@ export function syntheticSatellites(radius, opts = {}) {
 
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
+  const phases = new Float32Array(count);
   const golden = Math.PI * (3 - Math.sqrt(5)); // ~2.39996
+  const TAU = Math.PI * 2;
 
   for (let i = 0; i < count; i += 1) {
     // Even unit-sphere point via fibonacci lattice.
@@ -26,6 +28,10 @@ export function syntheticSatellites(radius, opts = {}) {
     positions[i * 3 + 1] = y * altitude;
     positions[i * 3 + 2] = Math.sin(theta) * r * altitude;
     sizes[i] = 0.6 + rand() * 0.8;
+    // Per-point twinkle phase (deterministic via the same seeded PRNG) used by
+    // the shader's subtle brightness pulse. Keeps stars alive without breaking
+    // the scientific-realism tone.
+    phases[i] = rand() * TAU;
   }
-  return { positions, sizes };
+  return { positions, sizes, phases };
 }

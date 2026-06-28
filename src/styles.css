@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #05070b;
+  background: #030407;
   color: #ecf7ff;
 }
 
@@ -24,10 +24,14 @@ body {
 #app {
   position: relative;
   min-width: 320px;
+  /* Deep-space radial gradient (canvas is transparent, so this shows behind
+     the globe). Central glow is very dim so the globe stays the focal point;
+     two faint remote-nebula tints add depth without becoming a rainbow.
+     Borrowed from a particle-demo backdrop, then desaturated for realism. */
   background:
-    radial-gradient(circle at 80% 18%, rgba(255, 255, 255, 0.2), transparent 18%),
-    radial-gradient(circle at 20% 80%, rgba(69, 201, 255, 0.14), transparent 24%),
-    #05070b;
+    radial-gradient(circle at 48% 42%, rgba(0, 240, 255, 0.06) 0%, rgba(5, 10, 28, 0.16) 26%, rgba(3, 4, 7, 0) 60%),
+    radial-gradient(circle at 75% 22%, rgba(120, 80, 200, 0.05) 0%, rgba(3, 4, 7, 0) 36%),
+    radial-gradient(circle at 50% 50%, #0c1024 0%, #030407 80%);
 }
 
 #globe-canvas {

@@ -3,6 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { CONFIG, QUALITY } from "../config.js";
 import {
@@ -97,7 +98,10 @@ export class EarthScene {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.15; // A1: low indoor reflection, terminator reads clearly
-    this.scene.background = new THREE.Color("#05070b");
+    // Leave the GL background transparent (null) so the CSS deep-space radial
+    // gradient shows through; renderer is alpha:true. The renderer's own clear
+    // alpha stays at 0, so the page background is fully visible behind the globe.
+    this.scene.background = null;
 
     this.camera.position.set(0.8, 1.2, CONFIG.cameraDistance);
     this.controls = new OrbitControls(this.camera, this.canvas);
@@ -143,6 +147,10 @@ export class EarthScene {
     // postprocessing with graceful degradation (PLAN-GLM5.2 §4.5 / I7).
     // Bloom tuned low enough that warm wind hues stay readable (task 3) while
     // still giving the rim/satellites a glow; refined further in task 7.
+    // OutputPass applies the renderer's tone mapping + sRGB conversion AFTER
+    // bloom — without it, the EffectComposer output skips the ACESFilmic/sRGB
+    // step the bloom pass expects, so the glow reads wrong. Borrowed from a
+    // Three.js particle demo that always closes the chain with OutputPass.
     // ?nobloom=1 skips the composer entirely — used by Playwright under SwiftShader
     // where the composer's per-frame render-target ReadPixels stalls screenshots.
     const skipBloom = new URLSearchParams(window.location.search).get("nobloom") === "1";
@@ -153,7 +161,11 @@ export class EarthScene {
       try {
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.5, 0.32));
+        // strength 0.30 / radius 0.55 / threshold 0.40 — slightly softer and a
+        // higher threshold than before so surface detail isn't washed out now
+        // that OutputPass makes the glow render correctly.
+        this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.30, 0.55, 0.40));
+        this.composer.addPass(new OutputPass());
         this.postprocessingEnabled = true;
       } catch (err) {
         this.postprocessingEnabled = false;
