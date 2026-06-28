@@ -130,6 +130,14 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   expect(terrainReady, "ETOPO1 terrain displacement applied").toBe(true);
   const terrainSource = await page.evaluate(() => window.__viz.terrainSource());
   expect(terrainSource, "terrain source is etopo1").toBe("etopo1");
+
+  // C3: Natural Earth country + state/province boundaries loaded.
+  await page.waitForFunction(() => window.__viz.boundariesStatus() === "ready", null, {
+    timeout: 30000
+  });
+  const binfo = await page.evaluate(() => window.__viz.boundariesInfo());
+  expect(binfo, "boundaries info present").toBeTruthy();
+  expect(binfo.countrySegmentCount, "country boundary segments loaded").toBeGreaterThan(100);
 });
 
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {

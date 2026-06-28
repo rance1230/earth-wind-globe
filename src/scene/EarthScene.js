@@ -17,6 +17,7 @@ import {
 import { createAtmosphere } from "./layers/createAtmosphere.js";
 import { createWindLayer } from "./layers/createWindLayer.js";
 import { createSatelliteLayer } from "./layers/createSatelliteLayer.js";
+import { createBoundariesLayerAsync } from "./layers/createBoundariesLayer.js";
 import { loadEra5WindFrame } from "../data/era5/loadEra5WindFrame.js";
 import { traceWindStreamlines } from "../data/era5/traceWindStreamlines.js";
 import {
@@ -159,11 +160,34 @@ export class EarthScene {
     // fallback), update the HUD badge. The __viz hook exposes the honest source.
     onEarthMapReady(() => this.updateEarthMapBadge());
 
+    // C3: async boundaries load (Natural Earth admin-0 + admin-1, single draw
+    // call each). Missing data degrades to an empty group (honest fallback).
+    this.boundariesStatus = "loading";
+    this.loadBoundaries();
+
     // Async ERA5 load (task 3). Wind starts as synthetic so the globe renders
     // immediately; if a validated ERA5 frame arrives we swap the wind layer to
     // ERA5-driven streamlines. Missing/invalid frames are reported honestly.
     markLoading();
     this.loadEra5();
+  }
+
+  async loadBoundaries() {
+    try {
+      const layer = await createBoundariesLayerAsync(CONFIG.radius);
+      this.boundariesLayer = layer;
+      this.root.add(layer.group);
+      this.boundariesStatus = layer.status;
+      this.boundariesLayerInfo = {
+        countrySegmentCount: layer.countrySegmentCount,
+        stateSegmentCount: layer.stateSegmentCount,
+        source: "naturalEarth110m"
+      };
+    } catch (err) {
+      this.boundariesStatus = "missing";
+      // eslint-disable-next-line no-console
+      console.warn("[EarthScene] boundaries load failed:", err);
+    }
   }
 
   async loadEra5() {
@@ -413,6 +437,9 @@ export class EarthScene {
       terrainReady: () => terrainReady(),
       terrainSource: () => terrainSource(),
       terrainDisplacementScale: () => 0.045,
+      // C3 boundaries hooks.
+      boundariesStatus: () => this.boundariesStatus,
+      boundariesInfo: () => this.boundariesLayerInfo ?? null,
       setPaused: (v) => this.setPaused(v),
       setQuality: (q) => this.setQuality(q),
       resetCamera: () => this.resetCamera()

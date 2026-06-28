@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "boundaries-v1",
+  "entries": [
+    {
+      "kind": "countries",
+      "asset": "countries-110m.json",
+      "naturalEarthName": "ne_110m_admin_0_countries",
+      "source": "Natural Earth (public domain, public-domain vector)",
+      "sourceUrl": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson",
+      "scale": "1:110m",
+      "credit": "Natural Earth (naturalearthdata.com)",
+      "licenseNote": "Natural Earth is public domain. Free for any use; no permission needed.",
+      "segmentCount": 289,
+      "fileSizeBytes": 233778,
+      "sha256": "2e72377288fdd85cd8af67fdd1df0eb009f9693b90e46280d965bcd7691607e7",
+      "generatedAt": "2026-06-28T02:57:10.936Z"
+    },
+    {
+      "kind": "states_provinces",
+      "asset": "states-110m.json",
+      "naturalEarthName": "ne_110m_admin_1_states_provinces",
+      "source": "Natural Earth (public domain, public-domain vector)",
+      "sourceUrl": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_1_states_provinces.geojson",
+      "scale": "1:110m",
+      "credit": "Natural Earth (naturalearthdata.com)",
+      "licenseNote": "Natural Earth is public domain. Free for any use; no permission needed.",
+      "segmentCount": 59,
+      "fileSizeBytes": 54378,
+      "sha256": "8d14a5ea06fea4182a0f63340dde7864218f53d205327533bf6333a03a2aeba9",
+      "generatedAt": "2026-06-28T02:57:10.940Z"
+    }
+  ]
+}
