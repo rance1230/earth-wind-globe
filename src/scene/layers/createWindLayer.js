@@ -2,10 +2,12 @@ import * as THREE from "three";
 import { syntheticWind } from "../../data/windSynthetic.js";
 import { CONFIG } from "../../config.js";
 
-// Wind layer (PLAN-GLM5.2 task 3 / §4.1).
+// Wind layer (PLAN-GLM5.2 task 3 / §4.1 + B3 enhancement).
 // Single merged BufferGeometry => one draw call. Per-vertex color (speed ->
 // cyan/yellow/red) + a per-vertex line-progress attribute drive a flow shader so
 // the streamlines visibly travel along their path instead of pulsing in unison.
+// B3: dual-wave glow (sharp core + soft halo) gives the lines more voluminous
+// presence without changing geometry.
 export function createWindLayer(radius, opts = {}) {
   const count = opts.count ?? CONFIG.windSegments;
   const pointsPerSeg = opts.points ?? 14;
@@ -40,12 +42,13 @@ export function createWindLayer(radius, opts = {}) {
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     uniforms: {
       uTime: { value: 0 },
-      uFlow: { value: 0.55 }, // flow speed
-      uBase: { value: 0.42 }, // baseline opacity floor
-      uDepthFade: { value: 1.0 } // front-bright/back-fade strength
+      uFlow: { value: 0.55 },
+      uBase: { value: 0.42 },
+      uDepthFade: { value: 1.0 },
+      uSunDir: { value: new THREE.Vector3(1, 0, 0) }
     },
     vertexShader: /* glsl */ `
       attribute vec3 color;
@@ -53,17 +56,18 @@ export function createWindLayer(radius, opts = {}) {
       varying vec3 vColor;
       varying float vProgress;
       varying float vFront;
+      varying float vSunDot;
+      uniform vec3 uSunDir;
       void main() {
         vColor = color;
         vProgress = aProgress;
-        // View-space position: front-facing streamlines (closer to camera) have a
-        // view-space normal roughly aligned with the view direction. Use the
-        // normalized view-space position z as a cheap front/back indicator so the
-        // near side reads brighter and the far side fades (task 6: 近处更亮, 远处更淡).
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vec3 vn = normalize(-mv.xyz);
-        // front-ness: 1.0 facing camera, 0.0 grazing/behind.
         vFront = clamp(0.5 + 0.5 * vn.z, 0.0, 1.0);
+        // Day/night factor: world-space normal dot sun direction.
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vec3 worldNormal = normalize(worldPos.xyz);
+        vSunDot = dot(worldNormal, uSunDir);
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -75,18 +79,28 @@ export function createWindLayer(radius, opts = {}) {
       varying vec3 vColor;
       varying float vProgress;
       varying float vFront;
+      varying float vSunDot;
       void main() {
-        // A moving bright band travels along each streamline along its real ERA5
-        // direction (driven by aProgress, advanced by uTime).
+        // Primary traveling bright band (sharp core).
         float wave = fract(vProgress * 1.0 - uTime * uFlow);
-        float band = smoothstep(0.55, 1.0, wave);
-        // Boost saturation in the bright band so warm hues survive ACES/bloom.
-        vec3 col = mix(vColor * 0.55, vColor, band);
-        float alpha = uBase + band * 0.7;
-        // Depth layering: near side bright, far side dim — avoids the flat
-        // "random starburst over the ocean" look and adds globe roundness.
+        float band = smoothstep(0.50, 1.0, wave);
+        // Secondary soft glow trail (wider, dimmer) adds volume.
+        float wave2 = fract(vProgress * 1.0 - uTime * uFlow * 0.85 + 0.3);
+        float glow = smoothstep(0.25, 0.85, wave2) * 0.35;
+        // Combine: band is the bright core, glow is the soft halo.
+        float intensity = band + glow;
+        // Day/night blend: day side darkens and boosts alpha for contrast
+        // against bright Blue Marble; night side keeps the glowy look.
+        float isDay = smoothstep(-0.1, 0.3, vSunDot);
+        vec3 nightCol = mix(vColor * 0.50, vColor, intensity);
+        float nightAlpha = uBase + intensity * 0.75;
+        // Day: deeper, more opaque so wind reads over bright land/ocean.
+        vec3 dayCol = vColor * 0.42;
+        float dayAlpha = (uBase * 0.55 + intensity * 0.9) * 0.82;
+        vec3 col = mix(nightCol, dayCol, isDay);
+        float alpha = mix(nightAlpha, dayAlpha, isDay);
         float depthFactor = mix(1.0 - uDepthFade, 1.0, vFront);
-        gl_FragColor = vec4(col * (0.7 + band * 1.1) * depthFactor, alpha * depthFactor);
+        gl_FragColor = vec4(col * (0.65 + intensity * 1.2) * depthFactor, alpha * depthFactor);
       }
     `
   });

@@ -321,6 +321,10 @@ export class EarthScene {
       segments
     });
     this.root.add(this.windLayer.group);
+    // Sync the current sun direction to the rebuilt wind layer.
+    if (this.currentSunDirection) {
+      this._syncWindSunDir(new THREE.Vector3(...this.currentSunDirection));
+    }
     // Refresh the layers list (satellites unchanged).
     this.layers = [this.windLayer, this.satelliteLayer];
     this.currentWindCount = this.windLayer.count ?? segments.length;
@@ -348,6 +352,12 @@ export class EarthScene {
     this.earthMesh = createEarth(CONFIG.radius);
     this.atmosphereMesh = createAtmosphere(CONFIG.radius);
     this.root.add(this.earthMesh, this.atmosphereMesh);
+    // Sync the current sun direction to newly created static layers.
+    if (this.currentSunDirection) {
+      const dir = new THREE.Vector3(...this.currentSunDirection);
+      this._syncEarthSunDir(dir);
+      this._syncAtmosphereSunDir(dir);
+    }
     this.buildDynamicLayers();
   }
 
@@ -359,6 +369,10 @@ export class EarthScene {
     this.windLayer = wind;
     this.satelliteLayer = satellites;
     this.root.add(wind.group, satellites.group);
+    // Sync the current sun direction to the new wind layer.
+    if (this.currentSunDirection) {
+      this._syncWindSunDir(new THREE.Vector3(...this.currentSunDirection));
+    }
     // Only dynamic layers animate + need dispose on quality change.
     this.layers = [wind, satellites];
     this.currentWindCount = wind.count ?? 0;
@@ -492,6 +506,33 @@ export class EarthScene {
     this.sunLight.target.position.set(0, 0, 0);
     this.sunLight.target.updateMatrixWorld();
     this.currentSunDirection = [dir.x, dir.y, dir.z];
+    this._syncWindSunDir(dir);
+    this._syncEarthSunDir(dir);
+    this._syncAtmosphereSunDir(dir);
+  }
+
+  _syncEarthSunDir(dir) {
+    const shader = this.earthMesh?.material?.userData?.shader;
+    if (shader?.uniforms?.uSunDir) {
+      shader.uniforms.uSunDir.value.copy(dir);
+    }
+  }
+
+  _syncAtmosphereSunDir(dir) {
+    const atmo = this.atmosphereMesh;
+    if (atmo) {
+      atmo.traverse((child) => {
+        if (child.isMesh && child.material?.uniforms?.uSunDir) {
+          child.material.uniforms.uSunDir.value.copy(dir);
+        }
+      });
+    }
+  }
+
+  _syncWindSunDir(dir) {
+    if (this.windLayer?.group?.material?.uniforms?.uSunDir) {
+      this.windLayer.group.material.uniforms.uSunDir.value.copy(dir);
+    }
   }
 
   updateEarthMapBadge() {
