@@ -13,7 +13,8 @@ import {
   earthMapAttribution,
   onEarthMapReady,
   terrainReady,
-  terrainSource
+  terrainSource,
+  TERRAIN_DISPLACEMENT_SCALE
 } from "./layers/createEarth.js";
 import { createAtmosphere } from "./layers/createAtmosphere.js";
 import { createWindLayer } from "./layers/createWindLayer.js";
@@ -33,7 +34,7 @@ import {
 // Deterministic intro framing (PLAN task 4.4). Used by init + resetCamera so the
 // globe always opens on the same longitude. Tuned in task 6 to face
 // Africa / Arabian Peninsula / Indian Ocean.
-const INTRO_ROTATION_Y = Math.PI * 0.5;
+const INTRO_ROTATION_Y = -Math.PI * 0.5;
 
 // lon/lat (degrees) -> unit vector on the sphere matching the SphereGeometry +
 // equirect texture. NOTE: SphereGeometry places texture longitude λ at
@@ -85,7 +86,7 @@ export class EarthScene {
   }
 
   init() {
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false });
     // ?lowres=1 (used by Playwright under SwiftShader) halves the backing-store
     // pixel ratio so full-viewport screenshots don't stall on ReadPixels.
     const lowres = new URLSearchParams(window.location.search).get("lowres") === "1";
@@ -93,15 +94,15 @@ export class EarthScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.pixelRatioCap) * this.testScale);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.30;
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.15; // A1: low indoor reflection, terminator reads clearly
-    // Leave the GL background transparent (null) so the CSS deep-space radial
-    // gradient shows through; renderer is alpha:true. The renderer's own clear
-    // alpha stays at 0, so the page background is fully visible behind the globe.
-    this.scene.background = null;
+    this.scene.environmentIntensity = 0.35;
+    // Solid dark background so the globe reads as a solid sphere, not floating
+    // over a CSS gradient. The renderer is alpha:false so no transparency.
+    this.scene.background = new THREE.Color("#030407");
+
 
     this.camera.position.set(0.8, 1.2, CONFIG.cameraDistance);
     this.controls = new OrbitControls(this.camera, this.canvas);
@@ -119,18 +120,18 @@ export class EarthScene {
     // A1: realistic sun as the key light. Direction is updated from the current
     // wind frame UTC time (subsolar point); a strong night-side hemisphere fill
     // keeps the dark hemisphere readable without flattening the terminator.
-    this.sunLight = new THREE.DirectionalLight("#fff6e8", 2.6);
+    this.sunLight = new THREE.DirectionalLight("#fff6e8", 2.8);
     this.scene.add(this.sunLight, this.sunLight.target);
     // Night-side fill: sky tint over a dim ground, lifted enough that the dark
     // hemisphere's terrain/labels stay readable (max channel > background floor)
     // but clearly dimmer than the sun-lit day side.
-    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.9);
+    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.8);
     this.scene.add(this.nightFill, this.root);
     // A modest ambient lift so the dark hemisphere's terrain stays above the
     // screenshot background-detection floor (max channel > ~58), keeping labels
     // and geography readable on the night side while the sun-lit day side is
     // still clearly brighter.
-    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 0.8);
+    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 1.0);
     this.scene.add(this.nightAmbient);
     this.nightFillEnabled = true;
     // Initial sun direction from the default ERA5 frame time; re-applied on
@@ -581,7 +582,7 @@ export class EarthScene {
       // C2 terrain relief hooks.
       terrainReady: () => terrainReady(),
       terrainSource: () => terrainSource(),
-      terrainDisplacementScale: () => 0.08,
+      terrainDisplacementScale: () => TERRAIN_DISPLACEMENT_SCALE,
       // C3 boundaries hooks.
       boundariesStatus: () => this.boundariesStatus,
       boundariesInfo: () => this.boundariesLayerInfo ?? null,

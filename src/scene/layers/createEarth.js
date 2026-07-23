@@ -2,15 +2,20 @@ import * as THREE from "three";
 
 // Earth (PLAN-V3 task A1).
 //
-// NASA Blue Marble NG texture with NO emissive self-illumination — replaced by
-// a realistic sun DirectionalLight + night-side fill so a day/night terminator
-// is visible. Procedural canvas remains the synchronous fallback.
-// Roughness 0.9 (was 1.0) lets ocean pick up subtle specular; envMapIntensity
-// 0.25 enables faint RoomEnvironment reflection on smoother water.
-// B1: procedural night-lights emissiveMap — city lights appear only on the
-// night side via onBeforeCompile injection.
+// Solid physically based earth surface: NASA Blue Marble provides albedo,
+// ETOPO1 provides macro displacement + micro normal detail, and a derived
+// roughness map keeps oceans smoother than land. No transparent/glass surface
+// or custom shader injection is used, so the material stays robust across
+// Three.js shader revisions.
 
 const EARTH_TEXTURE_URL = "assets/earth/blue-marble-5400x2700.jpg";
+const HEIGHTMAP_URL = "assets/earth/etopo1-heightmap-720x360.png";
+const NORMALMAP_URL = "assets/earth/etopo1-normalmap-720x360.png";
+
+// Deliberately exaggerated relative to real-world Earth so relief remains
+// visible at interactive zoom, while staying below 7.5% of the radius.
+export const TERRAIN_DISPLACEMENT_SCALE = 0.10;
+export const TERRAIN_DISPLACEMENT_BIAS = 0;
 
 // Module-level state read by EarthScene / __viz. Only nasaBlueMarble is set when
 // the real texture is actually on screen; proceduralFallback is honest.
@@ -57,34 +62,22 @@ export function createEarth(radius) {
   const material = new THREE.MeshStandardMaterial({
     map: fallback,
     emissive: new THREE.Color(0x000000),
-    emissiveIntensity: 1.0,
-    roughness: 0.9,
+    emissiveIntensity: 0,
+    roughness: 1.0,
     metalness: 0.0,
-    envMapIntensity: 0.25,
+    // RoomEnvironment is an indoor reflection probe; disabling it avoids
+    // rectangular studio highlights on the ocean. Direct sunlight still
+    // produces physically based specular response through the roughness map.
+    envMapIntensity: 0,
+    transparent: false,
+    opacity: 1,
+    depthTest: true,
+    depthWrite: true,
+    side: THREE.FrontSide,
     // C2: terrain relief via ETOPO1 displacement (applied after heightmap loads).
     displacementScale: 0,
-    displacementBias: 0
+    displacementBias: TERRAIN_DISPLACEMENT_BIAS
   });
-
-  // B1: inject night-side-only emissive into MeshStandardMaterial.
-  // The emissiveMap is generated procedurally; the shader multiplies emissive
-  // by a night factor so city lights only glow on the dark hemisphere.
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uSunDir = { value: new THREE.Vector3(1, 0, 0) };
-    material.userData.shader = shader;
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <emissivemap_fragment>",
-      /* glsl */ `
-      #include <emissivemap_fragment>
-      // Night-side only: dot(worldNormal, sunDir) < 0 means back-facing the sun.
-      // smoothstep gives a soft terminator band rather than a hard cut.
-      float sunDot = dot(geometry.normal, uSunDir);
-      float nightFactor = smoothstep(-0.15, -0.45, sunDot);
-      totalEmissiveRadiance *= nightFactor;
-      `
-    );
-  };
 
   // High subdivision so vertex displacement reads as smooth real terrain relief.
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 320, 240), material);
@@ -106,6 +99,8 @@ export function createEarth(radius) {
       material.needsUpdate = true;
       fallback.dispose();
       _markReady("nasaBlueMarble");
+      // eslint-disable-next-line no-console
+      console.log("[createEarth] NASA Blue Marble loaded successfully");
     },
     undefined,
     (err) => {
@@ -119,7 +114,6 @@ export function createEarth(radius) {
 
   // 3) C2: load the ETOPO1 heightmap and apply terrain displacement. On failure
   // the globe stays a smooth sphere (displacementScale 0) — never claim terrain.
-  const HEIGHTMAP_URL = "assets/earth/etopo1-heightmap-720x360.png";
   loader.load(
     HEIGHTMAP_URL,
     (hmap) => {
@@ -127,11 +121,10 @@ export function createEarth(radius) {
       hmap.anisotropy = 4;
       hmap.minFilter = THREE.LinearMipmapLinearFilter;
       material.displacementMap = hmap;
-      // Stronger relief so mountain ranges (Himalayas, Andes, Rockies) read as
-      // clear 3D terrain when zoomed in. displacementBias centers the land-only
-      // (0..1) map around 0 so ocean stays on the base sphere.
-      material.displacementScale = 0.08;
-      material.displacementBias = -0.08;
+      // The source map is land-only: ocean=0 stays on the base sphere and
+      // positive ETOPO1 elevation rises outward from it.
+      material.displacementScale = TERRAIN_DISPLACEMENT_SCALE;
+      material.displacementBias = TERRAIN_DISPLACEMENT_BIAS;
       material.needsUpdate = true;
       _terrainReady = true;
 
@@ -150,9 +143,10 @@ export function createEarth(radius) {
         const d = imgData.data;
         for (let i = 0; i < d.length; i += 4) {
           const h = d[i] / 255;
-          // Ocean (near-black) -> smooth (~0.15 roughness)
-          // Land (brighter)    -> matte  (~0.7–1.0 roughness)
-          const r = h < 0.05 ? 38 : 180 + h * 75;
+          // Ocean (near-black) -> satin (~0.72 roughness), avoiding the broad
+          // mirror glare that makes the globe read like transparent glass.
+          // Land (brighter) stays matte (~0.84–0.96 roughness).
+          const r = h < 0.02 ? 184 : Math.min(245, 214 + h * 31);
           d[i] = r;
           d[i + 1] = r;
           d[i + 2] = r;
@@ -167,64 +161,6 @@ export function createEarth(radius) {
         console.warn("[createEarth] roughnessMap generation failed:", e);
       }
 
-      // B1: generate procedural city-lights emissiveMap from the same heightmap.
-      // Land pixels get scattered warm light dots; ocean stays dark.
-      try {
-        const img = hmap.image;
-        const W = 512;
-        const H = 256;
-        const canvas = document.createElement("canvas");
-        canvas.width = W;
-        canvas.height = H;
-        const ctx = canvas.getContext("2d");
-        // Start black (no light on ocean).
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, W, H);
-
-        // Scatter city lights on land areas.
-        // Use the heightmap to determine land vs ocean at low resolution.
-        const tmpCanvas = document.createElement("canvas");
-        tmpCanvas.width = img.width || 720;
-        tmpCanvas.height = img.height || 360;
-        const tmpCtx = tmpCanvas.getContext("2d");
-        tmpCtx.drawImage(img, 0, 0);
-        const hmData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height).data;
-
-        const landLightColors = ["#ffcc66", "#ffaa44", "#ffee88", "#ffbb55", "#ffdd77"];
-        const wSrc = tmpCanvas.width;
-        const hSrc = tmpCanvas.height;
-
-        for (let y = 0; y < H; y++) {
-          for (let x = 0; x < W; x++) {
-            const sx = Math.floor((x / W) * wSrc);
-            const sy = Math.floor((y / H) * hSrc);
-            const idx = (sy * wSrc + sx) * 4;
-            const hval = hmData[idx] / 255;
-            // Land threshold.
-            if (hval > 0.05) {
-              // Sparse random city lights.
-              const density = 0.012 + hval * 0.025;
-              if (Math.random() < density) {
-                const color = landLightColors[(x + y) % landLightColors.length];
-                const size = Math.random() < 0.15 ? 2 : 1;
-                ctx.fillStyle = color;
-                ctx.globalAlpha = 0.5 + Math.random() * 0.5;
-                ctx.fillRect(x, y, size, size);
-              }
-            }
-          }
-        }
-        ctx.globalAlpha = 1;
-
-        const eTex = new THREE.CanvasTexture(canvas);
-        eTex.wrapS = THREE.RepeatWrapping;
-        eTex.colorSpace = THREE.SRGBColorSpace;
-        material.emissiveMap = eTex;
-        material.needsUpdate = true;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[createEarth] emissiveMap generation failed:", e);
-      }
     },
     undefined,
     (err) => {
@@ -236,14 +172,13 @@ export function createEarth(radius) {
 
   // 4) B-2: load the ETOPO1-derived normal map for fine surface relief when
   // zoomed in (adds micro-terrain shading without needing a higher-res color map).
-  const NORMALMAP_URL = "assets/earth/etopo1-normalmap-720x360.png";
   loader.load(
     NORMALMAP_URL,
     (nmap) => {
       nmap.wrapS = THREE.RepeatWrapping;
       nmap.anisotropy = 4;
       material.normalMap = nmap;
-      material.normalScale = new THREE.Vector2(0.8, 0.8);
+      material.normalScale = new THREE.Vector2(1.35, 1.35);
       material.needsUpdate = true;
     },
     undefined,

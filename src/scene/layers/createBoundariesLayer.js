@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import {
+  TERRAIN_DISPLACEMENT_BIAS,
+  TERRAIN_DISPLACEMENT_SCALE
+} from "./createEarth.js";
 
 // Boundaries layer (PLAN-V3): Natural Earth admin-0 + admin-1 + China provinces,
 // projected onto the sphere as merged THREE.LineSegments (one draw call each).
@@ -24,8 +28,8 @@ function sampleHeight(heightData, W, H, lon, lat) {
   return heightData[y * W + x] / 255;
 }
 
-// Project a lon/lat polyline onto the displaced sphere. r = radius + (h*0.08 - 0.08)
-// matches createEarth.js displacementScale/Bias so lines follow the terrain.
+// Project a lon/lat polyline onto the displaced sphere using the exact same
+// displacement constants as the earth material. A tiny lift prevents z-fight.
 function projectPolyline(ring, radius, heightData, hW, hH) {
   const verts = [];
   for (let i = 0; i < ring.length; i += 1) {
@@ -33,7 +37,7 @@ function projectPolyline(ring, radius, heightData, hW, hH) {
     const latR = THREE.MathUtils.degToRad(lat);
     const lonR = THREE.MathUtils.degToRad(lon);
     const h = sampleHeight(heightData, hW, hH, lon, lat);
-    const r = radius + (h * 0.08 - 0.08);
+    const r = radius + TERRAIN_DISPLACEMENT_BIAS + h * TERRAIN_DISPLACEMENT_SCALE + 0.004;
     // Z sign negated to match SphereGeometry's equirect mapping.
     verts.push(r * Math.cos(latR) * Math.cos(lonR), r * Math.sin(latR), -r * Math.cos(latR) * Math.sin(lonR));
   }
@@ -43,9 +47,9 @@ function projectPolyline(ring, radius, heightData, hW, hH) {
 export function buildBoundariesLayer(countriesSegs, statesSegs, chinaSegs, radius, heightData, hW, hH) {
   const group = new THREE.Group();
   const allSegs = [
-    { segs: countriesSegs, color: new THREE.Color("#dffbff"), opacity: 0.5 },
-    { segs: statesSegs, color: new THREE.Color("#9fc6e0"), opacity: 0.3 },
-    { segs: chinaSegs, color: new THREE.Color("#ffd27a"), opacity: 0.55 }
+    { segs: countriesSegs, color: new THREE.Color("#5a7a8a"), opacity: 0.55 },
+    { segs: statesSegs, color: new THREE.Color("#4a6a7a"), opacity: 0.35 },
+    { segs: chinaSegs, color: new THREE.Color("#8a7a5a"), opacity: 0.50 }
   ];
 
   const layers = [];
@@ -66,7 +70,7 @@ export function buildBoundariesLayer(countriesSegs, statesSegs, chinaSegs, radiu
       transparent: true,
       opacity: def.opacity,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      blending: THREE.NormalBlending
     });
     const lines = new THREE.LineSegments(geometry, material);
     lines.renderOrder = 3;

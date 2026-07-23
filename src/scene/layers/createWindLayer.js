@@ -16,7 +16,7 @@ export function createWindLayer(radius, opts = {}) {
   const segments =
     Array.isArray(opts.segments) && opts.segments.length > 0
       ? opts.segments
-      : syntheticWind(radius * 1.024, { count, points: pointsPerSeg, seed: CONFIG.seed });
+      : syntheticWind(radius * 1.06, { count, points: pointsPerSeg, seed: CONFIG.seed });
 
   const positions = [];
   const colors = [];
@@ -41,12 +41,12 @@ export function createWindLayer(radius, opts = {}) {
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     blending: THREE.NormalBlending,
     uniforms: {
       uTime: { value: 0 },
       uFlow: { value: 0.55 },
-      uBase: { value: 0.42 },
+      uBase: { value: 0.12 },
       uDepthFade: { value: 1.0 },
       uSunDir: { value: new THREE.Vector3(1, 0, 0) }
     },
@@ -100,7 +100,7 @@ export function createWindLayer(radius, opts = {}) {
         vec3 col = mix(nightCol, dayCol, isDay);
         float alpha = mix(nightAlpha, dayAlpha, isDay);
         float depthFactor = mix(1.0 - uDepthFade, 1.0, vFront);
-        gl_FragColor = vec4(col * (0.65 + intensity * 1.2) * depthFactor, alpha * depthFactor);
+        gl_FragColor = vec4(col * (0.45 + intensity * 0.6) * depthFactor, alpha * 0.50 * depthFactor);
       }
     `
   });
