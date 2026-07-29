@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "earth-heightmap-v1",
+  "asset": "etopo1-heightmap-2880x1440.png",
+  "source": "NOAA NCEI ETOPO1 Ice surface (1 arc-minute global relief, public domain)",
+  "sourceUrl": "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/netcdf/ETOPO1_Ice_g_gmt4.grd.gz",
+  "credit": "NOAA National Centers for Environmental Information (NCEI)",
+  "licenseNote": "ETOPO1 is a public-domain NOAA product. Credit: NOAA NCEI.",
+  "dimensions": {
+    "width": 2880,
+    "height": 1440
+  },
+  "units": "normalized land elevation 0..255 (bathymetry clamped to 0, cap 6000m)",
+  "preprocess": {
+    "downsample": "block-mean 2880x1440",
+    "landOnly": true,
+    "capMeters": 6000,
+    "nativeSource": true
+  },
+  "fileSizeBytes": 566364,
+  "sha256": "d0f0bb8e3eceebe52a2627bf25cd01a173041fce2c5fd85884e01ed5a405108d",
+  "generatedAt": "2026-07-28T23:59:31Z"
+}

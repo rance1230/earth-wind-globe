@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "earth-map-v1",
+  "asset": "blue-marble-8192x4096.jpg",
+  "source": "NASA Blue Marble 2002 (Wikimedia Commons full mosaic, downsampled to 8192x4096 for P3 High quality)",
+  "sourceUrl": "https://commons.wikimedia.org/wiki/File:Blue_Marble_2002.png",
+  "sourceRecord": "NASA Visible Earth / Blue Marble 2002",
+  "version": "2002 composite (P3 8K bake)",
+  "credit": "NASA Earth Observatory",
+  "licenseNote": "NASA imagery, generally public domain. Credit: NASA Earth Observatory.",
+  "dimensions": {
+    "width": 8192,
+    "height": 4096
+  },
+  "fileSizeBytes": 3357581,
+  "sha256": "6e411d8bc9d4aee89f4335c69d274f4a467a7ba7ed5abcaf1eaf44e15ea9c6d5",
+  "generatedAt": "2026-07-29T00:00:41.352342+00:00",
+  "qualityTiers": {
+    "high": "blue-marble-8192x4096.jpg",
+    "low": "blue-marble-5400x2700.jpg"
+  }
+}
