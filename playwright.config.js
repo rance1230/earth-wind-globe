@@ -15,7 +15,9 @@ export default defineConfig({
   timeout: 600000,
   reporter: [["list"]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    // Prefer PREVIEW_PORT when set so local machines with a busy 4173 don't
+    // silently reuse an unrelated process (reuseExistingServer would hide it).
+    baseURL: `http://127.0.0.1:${process.env.PREVIEW_PORT || 4173}`,
     // SwiftShader's GPU ReadPixels stalls make full-viewport screenshots (esp.
     // 1280x1280) take 30-60s each; allow generous action time.
     actionTimeout: 120000,
@@ -46,9 +48,11 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: "npm run preview",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    // strictPort fails fast if the port is taken by another app instead of
+    // serving the wrong site under reuseExistingServer.
+    command: `npx vite preview --host 127.0.0.1 --port ${process.env.PREVIEW_PORT || 4173} --strictPort`,
+    url: `http://127.0.0.1:${process.env.PREVIEW_PORT || 4173}`,
+    reuseExistingServer: false,
     timeout: 60000,
     cwd: process.cwd()
   }

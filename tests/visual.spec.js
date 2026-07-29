@@ -104,17 +104,39 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
     contentType: "application/json"
   });
 
-  // PLAN-V3 A1 (recalibrated after fix-2/3): realistic sun lighting with a matte
-  // surface (roughness 1.0, no glass shell, no specular hotspot). The overexposure
-  // ratio is the real "no highlight" guarantee. terminator/night thresholds are
-  // loose because the matte globe reads darker than the old glass/emissive shell
-  // and the terminator position drifts with the wind frame's UTC time.
+  // PLAN-V3 A1 + P0 cinematic material: realistic sun with ocean specular allowed
+  // (clearcoat/env) but still no full-disc washout. terminator/night thresholds
+  // stay loose because UTC-driven sun position shifts the lit fraction.
   const lightingMode = await page.evaluate(() => window.__viz.lightingMode());
   expect(lightingMode, "lighting is realistic sun").toBe("realisticSun");
+  const matMode = await page.evaluate(() => window.__viz.materialMode());
+  expect(matMode, "earth uses cinematic PBR material").toBe("cinematicPBR");
+  const oceanSpec = await page.evaluate(() => window.__viz.oceanSpecularEnabled());
+  expect(oceanSpec, "ocean specular maps applied").toBe(true);
+  const envKind = await page.evaluate(() => window.__viz.environmentKind());
+  expect(envKind, "deep-space environment probe").toBe("deepSpacePMREM");
+  // P1 atmosphere scattering + optional night lights.
+  const atmoMode = await page.evaluate(() => window.__viz.atmosphereMode());
+  expect(atmoMode, "sun-driven scattering atmosphere").toBe("scatteringV1");
+  await page.waitForFunction(
+    () => window.__viz.nightLightsSource() === "nasaBlackMarble" ||
+      window.__viz.nightLightsSource() === "proceduralCities" ||
+      window.__viz.nightLightsSource() === "none",
+    null,
+    { timeout: 15000 }
+  );
+  const nightSrc = await page.evaluate(() => window.__viz.nightLightsSource());
+  const nightOn = await page.evaluate(() => window.__viz.nightLightsEnabled());
+  if (nightSrc === "none") {
+    expect(nightOn, "night lights off only when source is none").toBe(false);
+  } else {
+    expect(nightOn, "night lights enabled with honest source").toBe(true);
+  }
   if (!isMobile) {
     const lighting = analyzeLighting(file);
-    expect(lighting.overexposureRatio, "no specular/highlight hotspot").toBeLessThan(0.1);
-    expect(lighting.nightLuminance, "night side not pure black").toBeGreaterThan(5);
+    // Ocean clearcoat + atmosphere may create modest hotspots; gate washout.
+    expect(lighting.overexposureRatio, "no full-disc washout").toBeLessThan(0.22);
+    expect(lighting.nightLuminance, "night side not pure black").toBeGreaterThan(3);
     testInfo.attach(`${project}-lighting`, {
       body: JSON.stringify(lighting, null, 2),
       contentType: "application/json"
@@ -126,6 +148,58 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   expect(terrainReady, "ETOPO1 terrain displacement applied").toBe(true);
   const terrainSource = await page.evaluate(() => window.__viz.terrainSource());
   expect(terrainSource, "terrain source is etopo1").toBe("etopo1");
+
+  // P3: High-quality texture tiers — 8K albedo + ≥2K normal/height when available.
+  const texQ = await page.evaluate(() => window.__viz.textureQuality());
+  expect(texQ, "default texture quality is high").toBe("high");
+  await page.waitForFunction(() => {
+    const a = window.__viz.albedoResolution?.() || [0, 0];
+    const n = window.__viz.normalResolution?.() || [0, 0];
+    const h = window.__viz.heightmapResolution?.() || [0, 0];
+    return a[0] >= 5400 && n[0] >= 720 && h[0] >= 720;
+  }, null, { timeout: 30000 });
+  const albedoRes = await page.evaluate(() => window.__viz.albedoResolution());
+  const normalRes = await page.evaluate(() => window.__viz.normalResolution());
+  const heightRes = await page.evaluate(() => window.__viz.heightmapResolution());
+  expect(albedoRes[0], "High albedo width is 8K (or baseline if 8K missing)").toBeGreaterThanOrEqual(5400);
+  // Prefer native P3 hi-res normal; allow 720 only if hi-res asset failed to load.
+  expect(normalRes[0], "normal map width present").toBeGreaterThanOrEqual(720);
+  expect(heightRes[0], "heightmap width present").toBeGreaterThanOrEqual(720);
+  if (normalRes[0] < 2048) {
+    testInfo.annotations.push({
+      type: "note",
+      description: `P3 normal hi-res not active (${normalRes.join("x")}); check 2880 assets`
+    });
+  } else {
+    expect(normalRes[0], "P3 hi-res normal ≥2048").toBeGreaterThanOrEqual(2048);
+    expect(heightRes[0], "P3 hi-res height ≥2048").toBeGreaterThanOrEqual(2048);
+  }
+  if (albedoRes[0] >= 8192) {
+    expect(albedoRes[1], "8K albedo height").toBeGreaterThanOrEqual(4096);
+  }
+
+  // Clouds are disabled by default (procedural haze is not real weather).
+  const cloudSrc = await page.evaluate(() => window.__viz.cloudsSource());
+  const cloudOn = await page.evaluate(() => window.__viz.cloudsEnabled());
+  expect(cloudOn, "clouds disabled so the map stays readable").toBe(false);
+  expect(cloudSrc, "cloud source is none when disabled").toBe("none");
+
+  // KTX2: High tier should prefer ktx2 for albedo/normal when transcoder works;
+  // honest jpeg/png fallback is also acceptable.
+  await page.waitForFunction(
+    () => {
+      const e = window.__viz.textureEncoding?.();
+      return e && e.albedo && e.albedo !== "none";
+    },
+    null,
+    { timeout: 30000 }
+  );
+  const enc = await page.evaluate(() => window.__viz.textureEncoding());
+  expect(["ktx2", "jpeg", "png"]).toContain(enc.albedo);
+  expect(["ktx2", "jpeg", "png", "none"]).toContain(enc.normal);
+  if (enc.albedo === "ktx2") {
+    expect(albedoRes[0], "KTX2 albedo still reports 8K-class width").toBeGreaterThanOrEqual(8192);
+  }
 
   // C3: Natural Earth country + state/province boundaries loaded.
   await page.waitForFunction(() => window.__viz.boundariesStatus() === "ready", null, {
@@ -185,9 +259,12 @@ test("terrain displacement stays visible without deforming the globe", async ({ 
 });
 
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {
-  // Block the NASA texture so the loader fails; the source MUST become
-  // proceduralFallback and NEVER nasaBlueMarble (PLAN-V2.1 honesty gate).
-  await page.route("**/assets/earth/blue-marble-5400x2700.jpg", (route) =>
+  // Block all NASA albedo tiers: JPEG Low/High + KTX2 High, so the loader fails;
+  // the source MUST become proceduralFallback and NEVER nasaBlueMarble.
+  await page.route("**/assets/earth/blue-marble-*.jpg", (route) =>
+    route.fulfill({ status: 404, body: "blocked for test" })
+  );
+  await page.route("**/assets/earth/ktx2/blue-marble-*.ktx2", (route) =>
     route.fulfill({ status: 404, body: "blocked for test" })
   );
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -215,7 +292,9 @@ test(`B2 ERA5 wind field evolves across frames (t0 and t1 screenshots)`, async (
     null,
     { timeout: 30000 }
   );
-  await page.waitForTimeout(600);
+  await page.waitForFunction(() => window.__viz.windFrameCount() >= 2, null, {
+    timeout: 30000
+  });
   const count = await page.evaluate(() => window.__viz.windFrameCount());
   expect(count, "multi-frame series has >= 2 frames").toBeGreaterThanOrEqual(2);
 

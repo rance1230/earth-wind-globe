@@ -13,7 +13,10 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
+// Baseline 5.4K must stay under 12MB. Optional High 8K asset is validated
+// separately when present and may be larger (still soft-capped).
 const MAX_TOTAL_MB = 12;
+const MAX_HIRES_MB = 16;
 
 // Minimal JPEG dimension parser: scan for the Start-Of-Frame markers (0xFFC0
 // baseline, 0xFFC2 progressive) and read height/width from the frame header.
@@ -127,6 +130,28 @@ function main() {
   console.log(`dims:     ${dims.width}x${dims.height}`);
   console.log(`size:     ${buf.length} bytes (${totalMb.toFixed(3)} MB)`);
   console.log(`sha256:   ${hash}`);
+
+  // P3 optional hi-res albedo (8K) when declared on the baseline manifest.
+  if (manifest.hiresManifest) {
+    const hiresPath = path.resolve(dir, manifest.hiresManifest);
+    if (!fs.existsSync(hiresPath)) fail(`hires manifest missing: ${hiresPath}`);
+    const hires = JSON.parse(fs.readFileSync(hiresPath, "utf8"));
+    const hiresAssetPath = path.resolve(dir, hires.asset);
+    if (!fs.existsSync(hiresAssetPath)) fail(`hires asset missing: ${hiresAssetPath}`);
+    const hbuf = fs.readFileSync(hiresAssetPath);
+    const hdims = jpegDimensions(hbuf);
+    if (hdims.width < 8192 || hdims.height < 4096) {
+      fail(`hires dims ${hdims.width}x${hdims.height} below 8192x4096 floor`);
+    }
+    const hhash = crypto.createHash("sha256").update(hbuf).digest("hex");
+    if (hhash !== hires.sha256) fail(`hires sha256 mismatch`);
+    if (hbuf.length !== Number(hires.fileSizeBytes)) fail(`hires size mismatch`);
+    const hMb = hbuf.length / (1024 * 1024);
+    if (hMb > MAX_HIRES_MB) fail(`hires asset ${hMb.toFixed(2)} MB exceeds ${MAX_HIRES_MB} MB`);
+    console.log(`hires:    ${hiresAssetPath}`);
+    console.log(`hires dims ${hdims.width}x${hdims.height}, ${hMb.toFixed(3)} MB`);
+  }
+
   console.log("RESULT: PASS");
   process.exit(0);
 }

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "earth-normalmap-v1",
+  "asset": "etopo1-normalmap-2880x1440.png",
+  "source": "Derived from native NOAA NCEI ETOPO1 Ice heightmap block-mean 2880x1440",
+  "sourceUrl": "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/netcdf/ETOPO1_Ice_g_gmt4.grd.gz",
+  "credit": "NOAA National Centers for Environmental Information (NCEI)",
+  "licenseNote": "ETOPO1 is a public-domain NOAA product. Credit: NOAA NCEI.",
+  "dimensions": {
+    "width": 2880,
+    "height": 1440
+  },
+  "preprocess": {
+    "algorithm": "Sobel gradient",
+    "strength": 2.8,
+    "heightmap": "etopo1-heightmap-2880x1440.png"
+  },
+  "fileSizeBytes": 2765977,
+  "sha256": "7b1b2255e5748a8b51da68532128827f21620780031aa3b9e741838760dbc31e",
+  "generatedAt": "2026-07-28T23:59:58.002Z"
+}

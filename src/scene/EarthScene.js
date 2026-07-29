@@ -4,7 +4,6 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { CONFIG, QUALITY } from "../config.js";
 import {
   createEarth,
@@ -14,9 +13,19 @@ import {
   onEarthMapReady,
   terrainReady,
   terrainSource,
+  materialMode,
+  oceanSpecularEnabled,
+  nightLightsEnabled,
+  nightLightsSource,
+  textureQuality,
+  albedoResolution,
+  normalResolution,
+  heightmapResolution,
+  textureEncoding,
   TERRAIN_DISPLACEMENT_SCALE
 } from "./layers/createEarth.js";
-import { createAtmosphere } from "./layers/createAtmosphere.js";
+import { createAtmosphere, atmosphereMode } from "./layers/createAtmosphere.js";
+import { createTextureLoaders } from "../util/textureLoaders.js";
 import { createWindLayer } from "./layers/createWindLayer.js";
 import { createSatelliteLayer } from "./layers/createSatelliteLayer.js";
 import { createBoundariesLayerAsync } from "./layers/createBoundariesLayer.js";
@@ -30,6 +39,50 @@ import {
   markLoading,
   active as activeWindSource
 } from "../data/windSource.js";
+
+// Build a deep-space PMREM so ocean clearcoat/env reflections read as cosmos
+// rather than the indoor rectangular RoomEnvironment probe.
+function createDeepSpaceEnvironment(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  // Near-black void with a cool zenith bias — no studio walls.
+  envScene.background = new THREE.Color("#010308");
+
+  // Soft distant fills that give the ocean a subtle cool specular tint.
+  const key = new THREE.DirectionalLight("#c8d8ff", 1.6);
+  key.position.set(4, 2, 6);
+  const fill = new THREE.DirectionalLight("#1a2a48", 0.55);
+  fill.position.set(-5, -1, -3);
+  const hemi = new THREE.HemisphereLight("#5a7aaa", "#02040a", 0.7);
+  envScene.add(key, fill, hemi);
+
+  // Sparse star points for tiny specular flecks (optional visual richness).
+  const starCount = 400;
+  const positions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i += 1) {
+    const u = Math.random();
+    const v = Math.random();
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1);
+    const r = 8;
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const stars = new THREE.Points(
+    starGeo,
+    new THREE.PointsMaterial({ color: 0xffffff, size: 0.04, sizeAttenuation: true })
+  );
+  envScene.add(stars);
+
+  const texture = pmrem.fromScene(envScene, 0.04).texture;
+  starGeo.dispose();
+  stars.material.dispose();
+  pmrem.dispose();
+  return texture;
+}
 
 // Deterministic intro framing (PLAN task 4.4). Used by init + resetCamera so the
 // globe always opens on the same longitude. Tuned in task 6 to face
@@ -94,14 +147,15 @@ export class EarthScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.pixelRatioCap) * this.testScale);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.30;
+    // P4: slightly cooler exposure so ocean clearcoat no longer clips to white.
+    this.renderer.toneMappingExposure = 1.08;
 
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.35;
+    // P0: deep-space environment probe (no indoor RoomEnvironment rectangles).
+    this.scene.environment = createDeepSpaceEnvironment(this.renderer);
+    this.scene.environmentIntensity = 0.28;
     // Solid dark background so the globe reads as a solid sphere, not floating
     // over a CSS gradient. The renderer is alpha:false so no transparency.
-    this.scene.background = new THREE.Color("#030407");
+    this.scene.background = new THREE.Color("#02040a");
 
 
     this.camera.position.set(0.8, 1.2, CONFIG.cameraDistance);
@@ -118,20 +172,15 @@ export class EarthScene {
     this.controls.zoomSpeed = 0.8;
 
     // A1: realistic sun as the key light. Direction is updated from the current
-    // wind frame UTC time (subsolar point); a strong night-side hemisphere fill
-    // keeps the dark hemisphere readable without flattening the terminator.
-    this.sunLight = new THREE.DirectionalLight("#fff6e8", 2.8);
+    // wind frame UTC time (subsolar point); a softer night-side fill keeps the
+    // dark hemisphere readable while preserving a clearer cinematic terminator.
+    this.sunLight = new THREE.DirectionalLight("#fff4e4", 2.9);
     this.scene.add(this.sunLight, this.sunLight.target);
-    // Night-side fill: sky tint over a dim ground, lifted enough that the dark
-    // hemisphere's terrain/labels stay readable (max channel > background floor)
-    // but clearly dimmer than the sun-lit day side.
-    this.nightFill = new THREE.HemisphereLight("#aebfe0", "#070b14", 1.8);
+    // Night-side fill: cooler and dimmer than V3 baseline so ocean specular on
+    // the day side is not flattened by ambient wash.
+    this.nightFill = new THREE.HemisphereLight("#8ea6c8", "#050810", 1.15);
     this.scene.add(this.nightFill, this.root);
-    // A modest ambient lift so the dark hemisphere's terrain stays above the
-    // screenshot background-detection floor (max channel > ~58), keeping labels
-    // and geography readable on the night side while the sun-lit day side is
-    // still clearly brighter.
-    this.nightAmbient = new THREE.AmbientLight("#7d8aa6", 1.0);
+    this.nightAmbient = new THREE.AmbientLight("#5c6a82", 0.55);
     this.scene.add(this.nightAmbient);
     this.nightFillEnabled = true;
     // Initial sun direction from the default ERA5 frame time; re-applied on
@@ -142,6 +191,9 @@ export class EarthScene {
     // then let the globe drift slowly. Equirect texture maps lon 0 to the seam,
     // so this offset puts ~-60° longitude toward the viewer.
     this.root.rotation.y = INTRO_ROTATION_Y;
+
+    // KTX2 transcoder + shared loaders (must exist before earth/clouds build).
+    this.textureLoaders = createTextureLoaders(this.renderer);
 
     this.buildLayers();
 
@@ -162,10 +214,9 @@ export class EarthScene {
       try {
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        // strength 0.30 / radius 0.55 / threshold 0.40 — slightly softer and a
-        // higher threshold than before so surface detail isn't washed out now
-        // that OutputPass makes the glow render correctly.
-        this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.30, 0.55, 0.40));
+        // P0: slightly stronger bloom so atmosphere rim + ocean hotspots glow
+        // without washing land albedo (threshold keeps midtones dark).
+        this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.36, 0.58, 0.42));
         this.composer.addPass(new OutputPass());
         this.postprocessingEnabled = true;
       } catch (err) {
@@ -349,17 +400,40 @@ export class EarthScene {
   }
 
   buildLayers() {
-    // Static layers (do not depend on quality, never rebuilt).
-    this.earthMesh = createEarth(CONFIG.radius);
+    // Earth depends on texture quality (P3 hi-res maps). Atmosphere is a static shell.
+    // Clouds are off by default: procedural haze is not real weather and obscures the map.
+    this.rebuildEarthLayer();
     this.atmosphereMesh = createAtmosphere(CONFIG.radius);
-    this.root.add(this.earthMesh, this.atmosphereMesh);
-    // Sync the current sun direction to newly created static layers.
+    this.cloudsLayer = null;
+    this.root.add(this.atmosphereMesh);
     if (this.currentSunDirection) {
       const dir = new THREE.Vector3(...this.currentSunDirection);
-      this._syncEarthSunDir(dir);
       this._syncAtmosphereSunDir(dir);
     }
     this.buildDynamicLayers();
+  }
+
+  rebuildEarthLayer() {
+    if (this.earthMesh) {
+      this.root.remove(this.earthMesh);
+      this.earthMesh.geometry?.dispose?.();
+      const mat = this.earthMesh.material;
+      if (mat) {
+        for (const key of ["map", "displacementMap", "normalMap", "roughnessMap", "clearcoatMap", "emissiveMap"]) {
+          mat[key]?.dispose?.();
+        }
+        mat.dispose?.();
+      }
+      this.earthMesh = null;
+    }
+    this.earthMesh = createEarth(CONFIG.radius, {
+      quality: this.quality,
+      loaders: this.textureLoaders
+    });
+    this.root.add(this.earthMesh);
+    if (this.currentSunDirection) {
+      this._syncEarthSunDir(new THREE.Vector3(...this.currentSunDirection));
+    }
   }
 
   buildDynamicLayers() {
@@ -439,6 +513,13 @@ export class EarthScene {
       this._lastSunTime = sunTime;
       this.updateSunFromTime(sunTime);
     }
+    // P1: keep earth night-lights + atmosphere sun uniforms live even when the
+    // shader recompiles after async emissiveMap load (hook may appear late).
+    if (this.currentSunDirection) {
+      const dir = new THREE.Vector3(...this.currentSunDirection);
+      this._syncEarthSunDir(dir);
+      this._syncAtmosphereSunDir(dir);
+    }
     for (const layer of this.layers) layer.update?.(elapsed, delta);
     this.controls.update();
     // C4: project DOM labels each frame (declutter + back-face cull). Pass the
@@ -471,6 +552,8 @@ export class EarthScene {
     if (!QUALITY[quality]) return;
     if (quality === this.quality) return;
     this.quality = quality;
+    // P3: rebuild earth so High/Low albedo+normal+height tiers actually swap.
+    this.rebuildEarthLayer();
     this.disposeDynamicLayers();
     this.buildDynamicLayers();
   }
@@ -579,6 +662,25 @@ export class EarthScene {
       setRenderFreeze: (v) => this.setRenderFreeze(v),
       earthMapSource: () => earthMapSource(),
       earthMapAttribution: () => earthMapAttribution(),
+      // P0 cinematic material hooks.
+      materialMode: () => materialMode(),
+      oceanSpecularEnabled: () => oceanSpecularEnabled(),
+      environmentKind: () => "deepSpacePMREM",
+      // P1 atmosphere + night lights hooks.
+      atmosphereMode: () => atmosphereMode(),
+      nightLightsEnabled: () => nightLightsEnabled(),
+      nightLightsSource: () => nightLightsSource(),
+      // P3 texture clarity hooks.
+      textureQuality: () => textureQuality(),
+      albedoResolution: () => albedoResolution(),
+      normalResolution: () => normalResolution(),
+      heightmapResolution: () => heightmapResolution(),
+      textureEncoding: () => textureEncoding(),
+      ktx2Supported: () => !!this.textureLoaders?.ktx2Supported,
+      // Clouds disabled (not real weather); hooks stay honest for tests/UI.
+      cloudsEnabled: () => false,
+      cloudsSource: () => "none",
+      cloudsEncoding: () => "none",
       // C2 terrain relief hooks.
       terrainReady: () => terrainReady(),
       terrainSource: () => terrainSource(),

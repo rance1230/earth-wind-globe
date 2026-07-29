@@ -7,9 +7,11 @@
 
 > 🌐 **在线 Demo**：<https://rance1230.github.io/earth-wind-globe/>
 
-复现 X 视频 [@codetaur, 2026-06-27](https://x.com/codetaur/status/2070734494915797392) 的核心观感：**真实日照玻璃质感地球 + ERA5 动态风场流线 + 卫星点群 + bloom 后期 + 3D 地形 + 国界省界 + 中英城市标签 + 可录屏镜头 + 真实像素验收**。
+复现 X 视频 [@codetaur, 2026-06-27](https://x.com/codetaur/status/2070734494915797392) 的核心观感：**真实 Blue Marble PBR 地球 + ETOPO1 高程地形 + ERA5 动态风场流线 + 卫星点群 + bloom 后期 + 国界省界 + 中英城市标签 + 可录屏镜头 + 真实像素验收**。
 
-![3D 风场地球预览](./docs/screenshot.png)
+![真实 PBR 材质与 ETOPO1 地形的 3D 风场地球预览](./docs/screenshot.png)
+
+> README 预览图由当前 High 质量构建在真实 Chromium 浏览器中生成，展示本地真实材质、地形起伏与 ERA5 风场。
 
 > 设计与决策记录见 **[PLAN.md](./PLAN.md)**；V1 逐任务执行计划见 **[PLAN-GLM5.2.md](./PLAN-GLM5.2.md)**；V2 ERA5 升级计划见 **[PLAN-ERA5-WAZA-GLM5.2.md](./PLAN-ERA5-WAZA-GLM5.2.md)**；V3 三项改进计划见 **[PLAN-V3-WAZA-GLM5.2.md](./PLAN-V3-WAZA-GLM5.2.md)**；当前验证状态与残余风险见 **[TRANSFER_STATUS.md](./TRANSFER_STATUS.md)**。
 
@@ -84,15 +86,17 @@ node scripts/era5/validate_frame.mjs public/data/era5/manifest.json   # 验证
 
 ## 地球纹理
 
-地球表面使用 **NASA Blue Marble: Next Generation** 无云真彩 equirectangular 静态纹理：
+地球表面使用 **NASA Blue Marble** 真彩 equirectangular 静态纹理，P3 起分质量档：
 
-- **资产**：`public/assets/earth/blue-marble-5400x2700.jpg`（5400×2700，2.20 MB，<12MB）
-- **来源**：NASA Visible Earth image record 73751 — `world.topo.bathy.200407.3x5400x2700.jpg`（base topography/bathymetry，2004 年 7 月合成，无云）
-- **Credit / License**：NASA Earth Observatory；NASA 影像，属公共领域。
-- **校验**：`node scripts/earth/validate_earth_assets.mjs public/assets/earth/manifest.json`（内联 JPEG SOF parser 读尺寸 + sha256 + 体积门，只用 Node 内置 fs/crypto）。
-- **运行时无网络请求**：纹理为本地静态资产，由 Vite 从 `public/` 提供。
-- **诚实降级**：加载失败时降级为程序化 fallback，`window.__viz.earthMapSource()` 返回 `proceduralFallback`（**绝不**谎称高精度图）；HUD 显示真实状态。
-- 数据来源、sha256、尺寸见 `public/assets/earth/manifest.json` 与 `TRANSFER_STATUS.md`。
+| 档 | albedo | height / normal | 体积（约） |
+|---|---|---|---|
+| **High（默认）** | **KTX2** `ktx2/blue-marble-8192x4096.ktx2`（回退 JPEG 8K） | normal **KTX2 2880**；height **PNG 2880** | High 四件套约 **3.2MB KTX2** vs 源约 6.7MB（见 `ktx2/manifest.json`） |
+| **Low** | `blue-marble-5400x2700.jpg`（NASA BMNG 2004-07） | ETOPO1 **720×360** PNG | 2.2MB + 46KB + 205KB |
+
+- **Credit / License**：NASA Earth Observatory / NOAA NCEI；公共领域。
+- **校验**：`node scripts/earth/validate_earth_assets.mjs public/assets/earth/manifest.json`（含 8K hires 校验）。
+- **运行时无网络请求**；失败时 `earthMapSource()==="proceduralFallback"`（绝不谎称 NASA）。
+- **钩子**：`textureQuality()` / `albedoResolution()` / `normalResolution()` / `heightmapResolution()`。
 
 ---
 
@@ -131,7 +135,12 @@ node scripts/era5/validate_frame.mjs public/data/era5/manifest.json   # 验证
 |---|---|
 | 构建 | Vite 8.1.0 |
 | 渲染 | 原生 Three.js 0.184.0（WebGL2，非 R3F） |
-| 光照 | RoomEnvironment（PMREM，内置，无外部 HDRI） |
+| 光照 | 真实太阳 DirectionalLight + 夜面柔光；**深空 PMREM**（程序化，无外部 HDRI/无室内矩形高光） |
+| 地球材质 | **MeshPhysicalMaterial 海陆分离 PBR**（海洋 clearcoat + 低 roughness，陆地哑光；ETOPO1 派生 mask） |
+| 大气 | **P1 scatteringV1**：太阳驱动 Rayleigh/Mie 近似散射（外层蓝晕 + 内层 rim + 日面 veil） |
+| 夜光 | 可选：**夜面 city lights**（优先 NASA Black Marble 本地烘焙；不可达时 `proceduralCities` 诚实降级） |
+| 云层 | **P4**：半透明慢转云壳（程序化 equirect，`cloudsEnabled`/`cloudsSource`） |
+| 贴图压缩 | **KTX2 / Basis ETC1S**（High 档优先：8K albedo + 2880 normal + clouds；失败回退 JPEG/PNG；height 仍用 PNG） |
 | 后期 | EffectComposer + UnrealBloom + ACESFilmic（含 try/catch 降级） |
 | 验收 | @playwright/test 1.61.1 + pngjs（HSV 颜色桶分析） |
 | 数据（V1） | 程序化合成风场（mulberry32 seeded）+ 合成卫星（fibonacci 球） |
@@ -147,7 +156,7 @@ node scripts/era5/validate_frame.mjs public/data/era5/manifest.json   # 验证
 | 文件 | 内容 |
 |---|---|
 | `src/scene/EarthScene.js` | 场景编排：renderer/ACES/PMREM/OrbitControls/UnrealBloom 管线 + 状态机（paused/quality）+ `window.__viz` 测试钩子 + setQuality 的 dispose/rebuild + postprocessing 降级 |
-| `src/scene/layers/createEarth.js` | **NASA Blue Marble NG 真彩纹理**（5400×2700）+ ETOPO1 3D 地形位移（C2）+ 真实太阳日照（A1，无 emissive 自发光）+ 程序化 fallback；`earthMapSource()`/`terrainReady()` 诚实标识 |
+| `src/scene/layers/createEarth.js` | **NASA Blue Marble NG 真彩纹理**（5400×2700）+ ETOPO1 3D 地形位移（C2）+ **cinematicPBR 海陆分离材质**（roughnessMap/clearcoatMap）+ 真实太阳日照（A1，无 emissive 自发光）+ 程序化 fallback；`earthMapSource()`/`materialMode()`/`oceanSpecularEnabled()` 诚实标识 |
 | `src/scene/layers/createBoundariesLayer.js` | Natural Earth 国界+省界（C3），单 LineSegments draw call |
 | `src/scene/layers/createLabelsLayer.js` | Natural Earth 城市标签（C4），DOM 投影 + declutter；中国城市中英双语 |
 | `src/scene/layers/createAtmosphere.js` | 玻璃质感壳（MeshPhysicalMaterial）+ fresnel rim glow（BackSide ShaderMaterial） |

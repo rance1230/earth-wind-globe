@@ -53,7 +53,10 @@ const treeEntries = [];
 for (const f of files) {
   const rel = path.relative(DIST, f).split(path.sep).join("/");
   const b64 = fs.readFileSync(f).toString("base64");
-  const blob = ghJson(`repos/${REPO}/git/blobs -f encoding=base64 --input -`, JSON.stringify({ content: b64 }));
+  const blob = ghJson(
+    `repos/${REPO}/git/blobs --input -`,
+    JSON.stringify({ encoding: "base64", content: b64 })
+  );
   treeEntries.push({ path: rel, mode: "100644", type: "blob", sha: blob.sha });
   if (treeEntries.length % 5 === 0) console.log(`  ${treeEntries.length}/${files.length} blobs`);
 }

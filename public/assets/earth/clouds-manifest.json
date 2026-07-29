@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "earth-clouds-v1",
+  "asset": "clouds-2048x1024.png",
+  "source": "Procedural multi-octave cloud coverage (project-generated, no third-party texture)",
+  "credit": "Procedural (this project)",
+  "licenseNote": "Original procedural asset generated for this project; free to use with the MIT project license.",
+  "dimensions": {
+    "width": 2048,
+    "height": 1024
+  },
+  "fileSizeBytes": 304528,
+  "sha256": "16ce01ce4ab758e6308fc78f96d2a8ed15faa28152d3d13426962347cf9cd9e5",
+  "generatedAt": "2026-07-29T00:09:46.549296+00:00"
+}
