@@ -2,12 +2,20 @@ import * as THREE from "three";
 
 // Earth (PLAN-V3 task A1).
 //
-// NASA Blue Marble NG texture with NO emissive self-illumination — replaced by
-// a realistic sun DirectionalLight + night-side fill so a day/night terminator
-// is visible. Procedural canvas remains the synchronous fallback. matte land
-// (roughness ~0.9, metalness 0) avoids specular highlights that read as "glow".
+// Solid physically based earth surface: NASA Blue Marble provides albedo,
+// ETOPO1 provides macro displacement + micro normal detail, and a derived
+// roughness map keeps oceans smoother than land. No transparent/glass surface
+// or custom shader injection is used, so the material stays robust across
+// Three.js shader revisions.
 
 const EARTH_TEXTURE_URL = "assets/earth/blue-marble-5400x2700.jpg";
+const HEIGHTMAP_URL = "assets/earth/etopo1-heightmap-720x360.png";
+const NORMALMAP_URL = "assets/earth/etopo1-normalmap-720x360.png";
+
+// Deliberately exaggerated relative to real-world Earth so relief remains
+// visible at interactive zoom, while staying below 7.5% of the radius.
+export const TERRAIN_DISPLACEMENT_SCALE = 0.10;
+export const TERRAIN_DISPLACEMENT_BIAS = 0;
 
 // Module-level state read by EarthScene / __viz. Only nasaBlueMarble is set when
 // the real texture is actually on screen; proceduralFallback is honest.
@@ -51,19 +59,24 @@ export function createEarth(radius) {
   fallback.wrapS = THREE.RepeatWrapping;
   fallback.anisotropy = 4;
 
-  // A1: no emissive — the surface is lit by a realistic sun + night-side fill.
-  // Fully matte (roughness 1.0) to eliminate the specular sun-spot highlight,
-  // and envMapIntensity 0 removes the RoomEnvironment indoor reflections.
   const material = new THREE.MeshStandardMaterial({
     map: fallback,
     emissive: new THREE.Color(0x000000),
     emissiveIntensity: 0,
     roughness: 1.0,
     metalness: 0.0,
+    // RoomEnvironment is an indoor reflection probe; disabling it avoids
+    // rectangular studio highlights on the ocean. Direct sunlight still
+    // produces physically based specular response through the roughness map.
     envMapIntensity: 0,
+    transparent: false,
+    opacity: 1,
+    depthTest: true,
+    depthWrite: true,
+    side: THREE.FrontSide,
     // C2: terrain relief via ETOPO1 displacement (applied after heightmap loads).
     displacementScale: 0,
-    displacementBias: 0
+    displacementBias: TERRAIN_DISPLACEMENT_BIAS
   });
 
   // High subdivision so vertex displacement reads as smooth real terrain relief.
@@ -86,6 +99,8 @@ export function createEarth(radius) {
       material.needsUpdate = true;
       fallback.dispose();
       _markReady("nasaBlueMarble");
+      // eslint-disable-next-line no-console
+      console.log("[createEarth] NASA Blue Marble loaded successfully");
     },
     undefined,
     (err) => {
@@ -99,7 +114,6 @@ export function createEarth(radius) {
 
   // 3) C2: load the ETOPO1 heightmap and apply terrain displacement. On failure
   // the globe stays a smooth sphere (displacementScale 0) — never claim terrain.
-  const HEIGHTMAP_URL = "assets/earth/etopo1-heightmap-720x360.png";
   loader.load(
     HEIGHTMAP_URL,
     (hmap) => {
@@ -107,13 +121,46 @@ export function createEarth(radius) {
       hmap.anisotropy = 4;
       hmap.minFilter = THREE.LinearMipmapLinearFilter;
       material.displacementMap = hmap;
-      // Stronger relief so mountain ranges (Himalayas, Andes, Rockies) read as
-      // clear 3D terrain when zoomed in. displacementBias centers the land-only
-      // (0..1) map around 0 so ocean stays on the base sphere.
-      material.displacementScale = 0.08;
-      material.displacementBias = -0.08;
+      // The source map is land-only: ocean=0 stays on the base sphere and
+      // positive ETOPO1 elevation rises outward from it.
+      material.displacementScale = TERRAIN_DISPLACEMENT_SCALE;
+      material.displacementBias = TERRAIN_DISPLACEMENT_BIAS;
       material.needsUpdate = true;
       _terrainReady = true;
+
+      // Derive a roughnessMap from the heightmap: ocean stays smooth
+      // (low roughness) and land becomes matte (high roughness).
+      try {
+        const img = hmap.image;
+        const W = img.width || 720;
+        const H = img.height || 360;
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, W, H);
+        const imgData = ctx.getImageData(0, 0, W, H);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const h = d[i] / 255;
+          // Ocean (near-black) -> satin (~0.72 roughness), avoiding the broad
+          // mirror glare that makes the globe read like transparent glass.
+          // Land (brighter) stays matte (~0.84–0.96 roughness).
+          const r = h < 0.02 ? 184 : Math.min(245, 214 + h * 31);
+          d[i] = r;
+          d[i + 1] = r;
+          d[i + 2] = r;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        const rTex = new THREE.CanvasTexture(canvas);
+        rTex.wrapS = THREE.RepeatWrapping;
+        material.roughnessMap = rTex;
+        material.needsUpdate = true;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[createEarth] roughnessMap generation failed:", e);
+      }
+
     },
     undefined,
     (err) => {
@@ -125,14 +172,13 @@ export function createEarth(radius) {
 
   // 4) B-2: load the ETOPO1-derived normal map for fine surface relief when
   // zoomed in (adds micro-terrain shading without needing a higher-res color map).
-  const NORMALMAP_URL = "assets/earth/etopo1-normalmap-720x360.png";
   loader.load(
     NORMALMAP_URL,
     (nmap) => {
       nmap.wrapS = THREE.RepeatWrapping;
       nmap.anisotropy = 4;
       material.normalMap = nmap;
-      material.normalScale = new THREE.Vector2(0.8, 0.8);
+      material.normalScale = new THREE.Vector2(1.35, 1.35);
       material.needsUpdate = true;
     },
     undefined,

@@ -81,22 +81,24 @@ function randomTangent(point, rand) {
   return new THREE.Vector3().crossVectors(normal, helper).normalize().applyAxisAngle(normal, rand() * Math.PI * 2);
 }
 
-// Map normalized speed (0..1+) to cyan -> pale yellow -> red.
+// Map normalized speed (0..1+) to muted cyan -> pale yellow -> red.
+// Colors are intentionally desaturated so wind reads as subtle overlay
+// rather than glowing neon lines.
 function speedToColor(speed) {
   const t = Math.min(1, Math.max(0, (speed - 0.25) / 0.95));
   let r, g, b;
   if (t < 0.5) {
-    // cyan (0.43, 0.97, 1) -> pale yellow (1, 0.9, 0.43)
+    // muted cyan (0.25, 0.60, 0.65) -> muted yellow (0.65, 0.55, 0.25)
     const k = t / 0.5;
-    r = lerp(0.43, 1.0, k);
-    g = lerp(0.97, 0.9, k);
-    b = lerp(1.0, 0.43, k);
+    r = lerp(0.25, 0.65, k);
+    g = lerp(0.60, 0.55, k);
+    b = lerp(0.65, 0.25, k);
   } else {
-    // pale yellow -> red (1, 0.32, 0.22)
+    // muted yellow -> muted red (0.65, 0.22, 0.15)
     const k = (t - 0.5) / 0.5;
-    r = lerp(1.0, 1.0, k);
-    g = lerp(0.9, 0.32, k);
-    b = lerp(0.43, 0.22, k);
+    r = lerp(0.65, 0.65, k);
+    g = lerp(0.55, 0.22, k);
+    b = lerp(0.25, 0.15, k);
   }
   return [r, g, b];
 }

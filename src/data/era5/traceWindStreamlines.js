@@ -40,7 +40,9 @@ export function traceWindStreamlines(frame, radius, opts = {}) {
   const p5 = Number.isFinite(stats.p5) ? stats.p5 : 1.5;
   const p95 = Number.isFinite(stats.p95) ? stats.p95 : 12;
 
-  const windR = radius * 1.024;
+  // Keep streamlines above the maximum exaggerated ETOPO1 terrain (6% of
+  // radius) while still below the atmosphere shell.
+  const windR = radius * 1.065;
   const segments = [];
 
   for (let i = 0; i < count; i += 1) {

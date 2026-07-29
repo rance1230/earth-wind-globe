@@ -1,14 +1,11 @@
 import * as THREE from "three";
 
-// Atmosphere (PLAN-V3 fix): the old MeshPhysicalMaterial glass shell
-// (transmission/thickness/low roughness) reflected the RoomEnvironment as a
-// mirror-like glassy layer. It is removed; only the fresnel rim glow remains —
-// a soft blue halo at the globe silhouette that emits light instead of
-// reflecting it.
+// Atmosphere: rim glow using AdditiveBlending. The rim only adds light at the
+// silhouette edge (BackSide + rim shader); the center of the globe remains
+// unaffected so the solid earth surface reads clearly.
 export function createAtmosphere(radius) {
   const group = new THREE.Group();
 
-  // Fresnel rim glow: slightly larger sphere, BackSide, additive.
   const rimMaterial = new THREE.ShaderMaterial({
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -16,8 +13,8 @@ export function createAtmosphere(radius) {
     side: THREE.BackSide,
     uniforms: {
       uColor: { value: new THREE.Color("#7fe6ff") },
-      uPower: { value: 2.6 },
-      uIntensity: { value: 1.15 }
+      uPower: { value: 4.5 },
+      uIntensity: { value: 0.62 }
     },
     vertexShader: /* glsl */ `
       varying vec3 vNormal;
@@ -36,15 +33,13 @@ export function createAtmosphere(radius) {
       varying vec3 vNormal;
       varying vec3 vView;
       void main() {
-        // BackSide flips the normal; take the absolute so the rim peaks at the
-        // silhouette (normal perpendicular to view direction).
         float rim = pow(1.0 - abs(dot(vNormal, vView)), uPower);
         rim *= uIntensity;
         gl_FragColor = vec4(uColor * rim, rim);
       }
     `
   });
-  const rim = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.085, 96, 64), rimMaterial);
+  const rim = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.08, 96, 64), rimMaterial);
   rim.renderOrder = 5;
   group.add(rim);
 

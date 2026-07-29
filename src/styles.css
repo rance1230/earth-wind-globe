@@ -34,6 +34,16 @@ body {
     radial-gradient(circle at 50% 50%, #0c1024 0%, #030407 80%);
 }
 
+/* Cinematic vignette: darkens the edges to focus attention on the globe. */
+#app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 160px 60px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
 #globe-canvas {
   display: block;
   width: 100%;

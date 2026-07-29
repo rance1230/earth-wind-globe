@@ -151,6 +151,39 @@ test(`renders the globe and saves a screenshot`, async ({ page }, testInfo) => {
   await page.evaluate(() => window.__viz.setRenderFreeze(true));
 });
 
+test("earth surface material compiles without WebGL shader errors", async ({ page }) => {
+  const shaderErrors = [];
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" && text.includes("WebGLProgram")) {
+      shaderErrors.push(text);
+    }
+  });
+
+  await page.goto("/?nobloom=1");
+  await page.waitForFunction(
+    () => window.__viz?.ready === true && window.__viz.earthMapReady() === true,
+    null,
+    { timeout: 30000 }
+  );
+  await page.waitForTimeout(600);
+
+  expect(shaderErrors, "earth material must compile and render").toEqual([]);
+});
+
+test("terrain displacement stays visible without deforming the globe", async ({ page }) => {
+  await page.goto("/?nobloom=1");
+  await page.waitForFunction(
+    () => window.__viz?.ready === true && window.__viz.terrainReady() === true,
+    null,
+    { timeout: 30000 }
+  );
+
+  const scale = await page.evaluate(() => window.__viz.terrainDisplacementScale());
+  expect(scale, "terrain relief is visibly exaggerated").toBeGreaterThanOrEqual(0.08);
+  expect(scale, "terrain relief does not distort the globe").toBeLessThanOrEqual(0.15);
+});
+
 test(`earth map falls back honestly when the texture is missing`, async ({ page }) => {
   // Block the NASA texture so the loader fails; the source MUST become
   // proceduralFallback and NEVER nasaBlueMarble (PLAN-V2.1 honesty gate).
