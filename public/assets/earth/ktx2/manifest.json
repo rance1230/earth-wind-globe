@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "earth-ktx2-v1",
+  "codec": "Basis ETC1S in KTX2 container (basisu -ktx2)",
+  "runtime": "three KTX2Loader + public/basis transcoder",
+  "note": "height stays PNG at runtime for displacement/roughness bake; ktx2 height is optional future",
+  "generatedAt": "2026-07-29T12:06:30.627830+00:00",
+  "assets": [
+    {
+      "name": "albedo",
+      "sourceBytes": 3357581,
+      "ktx2Bytes": 2654331,
+      "ratio": 0.791
+    },
+    {
+      "name": "normal",
+      "sourceBytes": 2765977,
+      "ktx2Bytes": 291644,
+      "ratio": 0.105
+    },
+    {
+      "name": "height",
+      "sourceBytes": 566364,
+      "ktx2Bytes": 218055,
+      "ratio": 0.385
+    },
+    {
+      "name": "clouds",
+      "sourceBytes": 304528,
+      "ktx2Bytes": 144504,
+      "ratio": 0.475
+    }
+  ],
+  "totals": {
+    "sourceBytes": 6994450,
+    "ktx2Bytes": 3308534,
+    "ratio": 0.473
+  }
+}

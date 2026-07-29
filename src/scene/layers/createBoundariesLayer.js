@@ -94,28 +94,38 @@ export function buildBoundariesLayer(countriesSegs, statesSegs, chinaSegs, radiu
   };
 }
 
-// Decode the ETOPO1 heightmap PNG into a Uint8 grayscale array via canvas.
+// Decode an ETOPO1 heightmap PNG into a Uint8 grayscale array via canvas.
+// Prefer the P3 hi-res 2880 map so borders track the same relief as the mesh.
 async function loadHeightData() {
-  try {
-    const resp = await fetch("assets/earth/etopo1-heightmap-720x360.png", { cache: "no-cache" });
-    if (!resp.ok) return null;
-    const blob = await resp.blob();
-    const bmp = await createImageBitmap(blob);
-    const canvas = document.createElement("canvas");
-    canvas.width = bmp.width;
-    canvas.height = bmp.height;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(bmp, 0, 0);
-    const { data } = ctx.getImageData(0, 0, bmp.width, bmp.height);
-    // grayscale: take red channel.
-    const gray = new Uint8Array(bmp.width * bmp.height);
-    for (let i = 0; i < gray.length; i += 1) gray[i] = data[i * 4];
-    return { data: gray, width: bmp.width, height: bmp.height };
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn("[boundaries] heightmap decode failed, lines will float:", err);
-    return null;
+  const candidates = [
+    "assets/earth/etopo1-heightmap-2880x1440.png",
+    "assets/earth/etopo1-heightmap-720x360.png"
+  ];
+  for (const url of candidates) {
+    try {
+      const resp = await fetch(url, { cache: "no-cache" });
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const bmp = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0);
+      const { data } = ctx.getImageData(0, 0, bmp.width, bmp.height);
+      // grayscale: take red channel.
+      const gray = new Uint8Array(bmp.width * bmp.height);
+      for (let i = 0; i < gray.length; i += 1) gray[i] = data[i * 4];
+      // eslint-disable-next-line no-console
+      console.log(`[boundaries] heightmap ${bmp.width}x${bmp.height} from ${url}`);
+      return { data: gray, width: bmp.width, height: bmp.height };
+    } catch {
+      /* try next */
+    }
   }
+  // eslint-disable-next-line no-console
+  console.warn("[boundaries] heightmap decode failed, lines will float");
+  return null;
 }
 
 export async function createBoundariesLayerAsync(radius) {
